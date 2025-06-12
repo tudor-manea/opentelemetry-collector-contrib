@@ -145,6 +145,9 @@ const (
 	GpuUsageTotal       = "gpu_usage_total"
 	GpuRequest          = "gpu_request"
 	GpuReservedCapacity = "gpu_reserved_capacity"
+	GpuUnreservedCapacity = "gpu_unreserved_capacity"
+	GpuCoresInUse = "gpu_cores_in_use"
+	GpuInstanceUtil = "gpu_instance_utilization"
 
 	HyperPodUnschedulablePendingReplacement = "unschedulable_pending_replacement"
 	HyperPodUnschedulablePendingReboot      = "unschedulable_pending_reboot"
@@ -366,6 +369,9 @@ func init() {
 		GpuUsageTotal:       UnitCount,
 		GpuRequest:          UnitCount,
 		GpuReservedCapacity: UnitPercent,
+		GpuUnreservedCapacity: UnitPercent,
+		GpuCoresInUse: UnitCount,
+		GpuInstanceUtil: UnitPercent,
 
 		HyperPodUnschedulablePendingReplacement: UnitCount,
 		HyperPodUnschedulablePendingReboot:      UnitCount,
