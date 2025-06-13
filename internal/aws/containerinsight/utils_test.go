@@ -734,6 +734,9 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         1,
 		"pod_gpu_usage_total":                   1,
 		"pod_gpu_reserved_capacity":             2.3677681271483983,
+		"pod_gpu_unreserved_capacity":           2.3677681271483983,
+		"pod_gpu_cores_in_use":                  1,
+		"pod_gpu_instance_utilization":          2.3677681271483983,
 	}
 	expectedUnits = map[string]string{
 		"pod_cpu_limit":                         "",
@@ -784,6 +787,9 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         UnitCount,
 		"pod_gpu_usage_total":                   UnitCount,
 		"pod_gpu_reserved_capacity":             UnitPercent,
+		"pod_gpu_unreserved_capacity":           UnitPercent,
+		"pod_gpu_cores_in_use":                  UnitCount,
+		"pod_gpu_instance_utilization":          UnitPercent,
 	}
 	tags = map[string]string{
 		"ClusterName":  "eks-aoc",
