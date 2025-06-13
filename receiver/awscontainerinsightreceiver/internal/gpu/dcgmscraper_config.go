@@ -65,9 +65,9 @@ func GetScraperConfig(hostInfoProvider hostInfoProvider) *config.ScrapeConfig {
 func getMetricRelabelConfig(hostInfoProvider hostInfoProvider) []*relabel.Config {
 	return []*relabel.Config{
 		{
-			SourceLabels: model.LabelNames{"__name__"},
-			Regex:        relabel.MustNewRegexp("DCGM_.*"),
-			Action:       relabel.Keep,
+			SourceLabels: model.LabelNames{"__name__"},     // Any label's name
+			Regex:        relabel.MustNewRegexp("DCGM_.*"), // Matching this regex
+			Action:       relabel.Keep,                     // will be kept
 		},
 		{
 			SourceLabels: model.LabelNames{"Hostname"},
