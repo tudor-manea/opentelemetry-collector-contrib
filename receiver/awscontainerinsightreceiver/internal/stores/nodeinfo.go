@@ -6,6 +6,7 @@ package stores // import "github.com/open-telemetry/opentelemetry-collector-cont
 import (
 	"fmt"
 	"sync"
+	//"sync/atomic"
 
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
@@ -15,12 +16,14 @@ import (
 )
 
 type nodeStats struct {
-	podCnt        int
-	containerCnt  int
-	cpuReq        uint64
-	memReq        uint64
-	gpuReq        uint64
-	gpuUsageTotal uint64
+	podCnt               int
+	containerCnt         int
+	cpuReq               uint64
+	memReq               uint64
+	gpuReq               uint64
+	gpuUsageTotal        uint64
+	neuroncoreReq        uint64
+	neuroncoreUsageTotal uint64
 }
 
 type nodeInfo struct {
@@ -116,6 +119,15 @@ func (n *nodeInfo) getNodeStatusCapacityGPUs() (uint64, bool) {
 	}
 	gpus := capacityResources.Name(resourceSpecNvidiaGpuKey, resource.DecimalExponent).Value()
 	return forceConvertToInt64(gpus, n.logger), true
+}
+
+func (n *nodeInfo) getNodeStatusCapacityNeuroncores() (uint64, bool) {
+	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
+	if !ok {
+		return 0, false
+	}
+	neuroncores := capacityResources.Name(resourceSpecNeuroncoreKey, resource.DecimalExponent).Value()
+	return forceConvertToInt64(neuroncores, n.logger), true
 }
 
 func (n *nodeInfo) getNodeStatusCondition(conditionType v1.NodeConditionType) (uint64, bool) {
