@@ -146,8 +146,12 @@ const (
 	GpuRequest            = "gpu_request"
 	GpuReservedCapacity   = "gpu_reserved_capacity"
 	GpuUnreservedCapacity = "gpu_unreserved_capacity"
-	GpuCoresInUse         = "gpu_cores_in_use"
-	GpuInstanceUtil       = "gpu_instance_utilization"
+
+	NeuroncoreLimit              = "neuroncore_limit"
+	NeuroncoreUsageTotal         = "neuroncore_usage_total"
+	NeuroncoreRequest            = "neuroncore_request"
+	NeuroncoreReservedCapacity   = "neuroncore_reserved_capacity"
+	NeuroncoreUnreservedCapacity = "neuroncore_unreserved_capacity"
 
 	HyperPodUnschedulablePendingReplacement = "unschedulable_pending_replacement"
 	HyperPodUnschedulablePendingReboot      = "unschedulable_pending_reboot"
@@ -190,17 +194,16 @@ const (
 
 	// Special type for pause container
 	// because containerd does not set container name pause container name to POD like docker does.
-	TypeInfraContainer  = "InfraContainer"
-	TypeContainerGPU    = "ContainerGPU"
-	TypePodGPU          = "PodGPU"
-	TypeNodeGPU         = "NodeGPU"
-	TypeClusterGPU      = "ClusterGPU"
-	TypeContainerNeuron = "ContainerNeuron"
-	TypeContainerEFA    = "ContainerEFA"
-	TypePodEFA          = "PodEFA"
-	TypeNodeEFA         = "NodeEFA"
-	TypeHyperPodNode    = "HyperPodNode"
-	TypeNodeNVME        = "NodeNVME"
+	TypeInfraContainer = "InfraContainer"
+	TypeContainerGPU   = "ContainerGPU"
+	TypePodGPU         = "PodGPU"
+	TypeNodeGPU        = "NodeGPU"
+	TypeClusterGPU     = "ClusterGPU"
+	TypeContainerEFA   = "ContainerEFA"
+	TypePodEFA         = "PodEFA"
+	TypeNodeEFA        = "NodeEFA"
+	TypeHyperPodNode   = "HyperPodNode"
+	TypeNodeNVME       = "NodeNVME"
 
 	// unit
 	UnitBytes       = "Bytes"
@@ -370,8 +373,12 @@ func init() {
 		GpuRequest:            UnitCount,
 		GpuReservedCapacity:   UnitPercent,
 		GpuUnreservedCapacity: UnitPercent,
-		GpuCoresInUse:         UnitCount,
-		GpuInstanceUtil:       UnitPercent,
+
+		NeuroncoreLimit:              UnitCount,
+		NeuroncoreUsageTotal:         UnitCount,
+		NeuroncoreRequest:            UnitCount,
+		NeuroncoreReservedCapacity:   UnitPercent,
+		NeuroncoreUnreservedCapacity: UnitPercent,
 
 		HyperPodUnschedulablePendingReplacement: UnitCount,
 		HyperPodUnschedulablePendingReboot:      UnitCount,
