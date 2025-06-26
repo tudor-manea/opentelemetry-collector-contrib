@@ -141,10 +141,17 @@ const (
 	EfaRxDropped          = "rx_dropped"
 	EfaTxBytes            = "tx_bytes"
 
-	GpuLimit            = "gpu_limit"
-	GpuUsageTotal       = "gpu_usage_total"
-	GpuRequest          = "gpu_request"
-	GpuReservedCapacity = "gpu_reserved_capacity"
+	GpuLimit              = "gpu_limit"
+	GpuUsageTotal         = "gpu_usage_total"
+	GpuRequest            = "gpu_request"
+	GpuReservedCapacity   = "gpu_reserved_capacity"
+	GpuUnreservedCapacity = "gpu_unreserved_capacity"
+
+	NeuroncoreLimit              = "neuroncore_limit"
+	NeuroncoreUsageTotal         = "neuroncore_usage_total"
+	NeuroncoreRequest            = "neuroncore_request"
+	NeuroncoreReservedCapacity   = "neuroncore_reserved_capacity"
+	NeuroncoreUnreservedCapacity = "neuroncore_unreserved_capacity"
 
 	HyperPodUnschedulablePendingReplacement = "unschedulable_pending_replacement"
 	HyperPodUnschedulablePendingReboot      = "unschedulable_pending_reboot"
@@ -187,17 +194,16 @@ const (
 
 	// Special type for pause container
 	// because containerd does not set container name pause container name to POD like docker does.
-	TypeInfraContainer  = "InfraContainer"
-	TypeContainerGPU    = "ContainerGPU"
-	TypePodGPU          = "PodGPU"
-	TypeNodeGPU         = "NodeGPU"
-	TypeClusterGPU      = "ClusterGPU"
-	TypeContainerNeuron = "ContainerNeuron"
-	TypeContainerEFA    = "ContainerEFA"
-	TypePodEFA          = "PodEFA"
-	TypeNodeEFA         = "NodeEFA"
-	TypeHyperPodNode    = "HyperPodNode"
-	TypeNodeNVME        = "NodeNVME"
+	TypeInfraContainer = "InfraContainer"
+	TypeContainerGPU   = "ContainerGPU"
+	TypePodGPU         = "PodGPU"
+	TypeNodeGPU        = "NodeGPU"
+	TypeClusterGPU     = "ClusterGPU"
+	TypeContainerEFA   = "ContainerEFA"
+	TypePodEFA         = "PodEFA"
+	TypeNodeEFA        = "NodeEFA"
+	TypeHyperPodNode   = "HyperPodNode"
+	TypeNodeNVME       = "NodeNVME"
 
 	// unit
 	UnitBytes       = "Bytes"
@@ -362,10 +368,17 @@ func init() {
 		EfaRxDropped:          UnitCountPerSec,
 		EfaTxBytes:            UnitBytesPerSec,
 
-		GpuLimit:            UnitCount,
-		GpuUsageTotal:       UnitCount,
-		GpuRequest:          UnitCount,
-		GpuReservedCapacity: UnitPercent,
+		GpuLimit:              UnitCount,
+		GpuUsageTotal:         UnitCount,
+		GpuRequest:            UnitCount,
+		GpuReservedCapacity:   UnitPercent,
+		GpuUnreservedCapacity: UnitPercent,
+
+		NeuroncoreLimit:              UnitCount,
+		NeuroncoreUsageTotal:         UnitCount,
+		NeuroncoreRequest:            UnitCount,
+		NeuroncoreReservedCapacity:   UnitPercent,
+		NeuroncoreUnreservedCapacity: UnitPercent,
 
 		HyperPodUnschedulablePendingReplacement: UnitCount,
 		HyperPodUnschedulablePendingReboot:      UnitCount,

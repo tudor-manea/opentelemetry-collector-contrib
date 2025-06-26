@@ -435,6 +435,9 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_limit":                      int32(7),
 		"node_gpu_usage_total":                int32(7),
 		"node_gpu_reserved_capacity":          3.0093851356081194,
+		"node_gpu_unreserved_capacity":        2.9303736689169724,
+		"node_gpu_cores_in_use":               int32(7),
+		"node_gpu_instance_utilization":       2.9303736689169724,
 	}
 	expectedUnits = map[string]string{
 		"node_cpu_limit":                      "",
@@ -475,6 +478,9 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_limit":                      UnitCount,
 		"node_gpu_usage_total":                UnitCount,
 		"node_gpu_reserved_capacity":          UnitPercent,
+		"node_gpu_unreserved_capacity":        UnitPercent,
+		"node_gpu_cores_in_use":               UnitCount,
+		"node_gpu_instance_utilization":       UnitPercent,
 	}
 	tags = map[string]string{
 		"AutoScalingGroupName": "eks-a6bb9db9-267c-401c-db55-df8ef645b06f",
@@ -728,6 +734,9 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         1,
 		"pod_gpu_usage_total":                   1,
 		"pod_gpu_reserved_capacity":             2.3677681271483983,
+		"pod_gpu_unreserved_capacity":           2.3677681271483983,
+		"pod_gpu_cores_in_use":                  1,
+		"pod_gpu_instance_utilization":          2.3677681271483983,
 	}
 	expectedUnits = map[string]string{
 		"pod_cpu_limit":                         "",
@@ -778,6 +787,9 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         UnitCount,
 		"pod_gpu_usage_total":                   UnitCount,
 		"pod_gpu_reserved_capacity":             UnitPercent,
+		"pod_gpu_unreserved_capacity":           UnitPercent,
+		"pod_gpu_cores_in_use":                  UnitCount,
+		"pod_gpu_instance_utilization":          UnitPercent,
 	}
 	tags = map[string]string{
 		"ClusterName":  "eks-aoc",

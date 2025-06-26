@@ -302,6 +302,7 @@ func TestPodStore_decorateGpu(t *testing.T) {
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_limit").(uint64))
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_usage_total").(uint64))
 	assert.Equal(t, float64(5), metric.GetField("pod_gpu_reserved_capacity").(float64))
+	assert.Equal(t, float64(95), metric.GetField("pod_gpu_unreserved_capacity").(float64))
 }
 
 func TestPodStore_previousCleanupLocking(_ *testing.T) {
@@ -986,6 +987,7 @@ func TestPodStore_decorateNode(t *testing.T) {
 	assert.Equal(t, uint64(20), metric.GetField("node_gpu_limit").(uint64))
 	assert.Equal(t, uint64(1), metric.GetField("node_gpu_usage_total").(uint64))
 	assert.Equal(t, float64(5), metric.GetField("node_gpu_reserved_capacity").(float64))
+	assert.Equal(t, float64(95), metric.GetField("node_gpu_unreserved_capacity").(float64))
 
 	assert.Equal(t, uint64(1), metric.GetField("node_status_condition_ready").(uint64))
 	assert.Equal(t, uint64(0), metric.GetField("node_status_condition_disk_pressure").(uint64))
