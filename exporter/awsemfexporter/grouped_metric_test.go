@@ -6,6 +6,7 @@ package awsemfexporter
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -118,7 +119,7 @@ func TestAddToGroupedMetric(t *testing.T) {
 
 			assert.Len(t, groupedMetrics, 1)
 			for _, v := range groupedMetrics {
-				assert.Equal(t, len(tc.expectedMetricInfo), len(v.metrics))
+				assert.Len(t, v.metrics, len(tc.expectedMetricInfo))
 				assert.Equal(t, tc.expectedMetricInfo, v.metrics)
 				assert.Len(t, v.labels, 1)
 				assert.Equal(t, generateTestMetricMetadata(namespace, timestamp, logGroup, logStreamName, instrumentationLibName, tc.expectedMetricType), v.metadata)
@@ -305,9 +306,10 @@ func TestAddToGroupedMetric(t *testing.T) {
 			}
 			assert.Equal(t, expectedLabels, group.labels)
 
-			if group.metadata.logGroup == "log-group-2" {
+			switch group.metadata.logGroup {
+			case "log-group-2":
 				seenLogGroup2 = true
-			} else if group.metadata.logGroup == "log-group-1" {
+			case "log-group-1":
 				seenLogGroup1 = true
 			}
 		}
@@ -429,13 +431,24 @@ func TestAddToGroupedMetric(t *testing.T) {
 		}
 		assert.Len(t, groupedMetrics, 2)
 		expectedLabels := map[string]string{"label1": "value1"}
-		idx := 0
+
+		// Sort metadata list to prevent race condition
+		var metadataList []cWMetricMetadata
+		for _, v := range groupedMetrics {
+			metadataList = append(metadataList, v.metadata)
+		}
+		sort.Slice(metadataList, func(i, j int) bool {
+			return metadataList[i].batchIndex < metadataList[j].batchIndex
+		})
+
+		for i, metadata := range metadataList {
+			expectedMetadata := generateTestMetricMetadata(namespace, timestamp, logGroup, logStreamName, instrumentationLibName, metrics.At(0).Type(), i)
+			assert.Equal(t, expectedMetadata, metadata)
+		}
 		for _, v := range groupedMetrics {
 			assert.Len(t, v.metrics, 1)
 			assert.Len(t, v.labels, 1)
-			assert.Equal(t, generateTestMetricMetadata(namespace, timestamp, logGroup, logStreamName, instrumentationLibName, metrics.At(0).Type(), idx), v.metadata)
 			assert.Equal(t, expectedLabels, v.labels)
-			idx++
 		}
 	})
 
@@ -502,7 +515,7 @@ func TestAddKubernetesWrapper(t *testing.T) {
 		dockerObj := struct {
 			ContainerID string `json:"container_id"`
 		}{
-			ContainerID: "Container mccontainter the third",
+			ContainerID: "Container mccontainer the third",
 		}
 		expectedCreatedObj := struct {
 			ContainerName string `json:"container_name"`
@@ -517,7 +530,7 @@ func TestAddKubernetesWrapper(t *testing.T) {
 		}
 
 		inputs := make(map[string]string)
-		inputs["container_id"] = "Container mccontainter the third"
+		inputs["container_id"] = "Container mccontainer the third"
 		inputs["container"] = "container mccontainer"
 		inputs["NodeName"] = "hosty de la host"
 		inputs["PodId"] = "Le id de Pod"
