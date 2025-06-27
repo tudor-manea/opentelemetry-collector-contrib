@@ -77,6 +77,7 @@ func TestIsNode(t *testing.T) {
 	assert.True(t, IsNode(TypeNodeEFA))
 	assert.True(t, IsNode(TypeNodeFS))
 	assert.True(t, IsNode(TypeNodeGPU))
+	assert.True(t, IsNode(TypeNodeNeuroncore))
 	assert.True(t, IsNode(TypeNodeNet))
 	assert.False(t, IsNode(TypePod))
 	assert.True(t, IsNode(TypeHyperPodNode))
@@ -95,6 +96,7 @@ func TestIsContainer(t *testing.T) {
 	assert.True(t, IsContainer(TypeContainerDiskIO))
 	assert.True(t, IsContainer(TypeContainerEFA))
 	assert.True(t, IsContainer(TypeContainerGPU))
+	assert.True(t, IsContainer(TypeContainerNeuroncore))
 	assert.True(t, IsContainer(TypeContainerFS))
 	assert.False(t, IsContainer(TypePod))
 }
@@ -103,6 +105,7 @@ func TestIsPod(t *testing.T) {
 	assert.True(t, IsPod(TypePod))
 	assert.True(t, IsPod(TypePodEFA))
 	assert.True(t, IsPod(TypePodGPU))
+	assert.True(t, IsPod(TypePodNeuroncore))
 	assert.True(t, IsPod(TypePodNet))
 	assert.False(t, IsPod(TypeInstance))
 }
@@ -442,8 +445,11 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_usage_total":                int32(7),
 		"node_gpu_reserved_capacity":          3.0093851356081194,
 		"node_gpu_unreserved_capacity":        2.9303736689169724,
-		"node_gpu_cores_in_use":               int32(7),
-		"node_gpu_instance_utilization":       2.9303736689169724,
+		"node_neuroncore_request":             int32(4),
+		"node_neuroncore_limit":               int32(8),
+		"node_neuroncore_usage_total":         int32(6),
+		"node_neuroncore_reserved_capacity":   25.0,
+		"node_neuroncore_unreserved_capacity": 75.0,
 	}
 	expectedUnits = map[string]string{
 		"node_cpu_limit":                      "",
@@ -485,8 +491,11 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_usage_total":                UnitCount,
 		"node_gpu_reserved_capacity":          UnitPercent,
 		"node_gpu_unreserved_capacity":        UnitPercent,
-		"node_gpu_cores_in_use":               UnitCount,
-		"node_gpu_instance_utilization":       UnitPercent,
+		"node_neuroncore_request":             UnitCount,
+		"node_neuroncore_limit":               UnitCount,
+		"node_neuroncore_usage_total":         UnitCount,
+		"node_neuroncore_reserved_capacity":   UnitPercent,
+		"node_neuroncore_unreserved_capacity": UnitPercent,
 	}
 	tags = map[string]string{
 		"AutoScalingGroupName": "eks-a6bb9db9-267c-401c-db55-df8ef645b06f",
@@ -741,8 +750,11 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_usage_total":                   1,
 		"pod_gpu_reserved_capacity":             2.3677681271483983,
 		"pod_gpu_unreserved_capacity":           2.3677681271483983,
-		"pod_gpu_cores_in_use":                  1,
-		"pod_gpu_instance_utilization":          2.3677681271483983,
+		"pod_neuroncore_request":                1,
+		"pod_neuroncore_limit":                  2,
+		"pod_neuroncore_usage_total":            2,
+		"pod_neuroncore_reserved_capacity":      12.5,
+		"pod_neuroncore_unreserved_capacity":    87.5,
 	}
 	expectedUnits = map[string]string{
 		"pod_cpu_limit":                         "",
@@ -794,8 +806,11 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_usage_total":                   UnitCount,
 		"pod_gpu_reserved_capacity":             UnitPercent,
 		"pod_gpu_unreserved_capacity":           UnitPercent,
-		"pod_gpu_cores_in_use":                  UnitCount,
-		"pod_gpu_instance_utilization":          UnitPercent,
+		"pod_neuroncore_request":                UnitCount,
+		"pod_neuroncore_limit":                  UnitCount,
+		"pod_neuroncore_usage_total":            UnitCount,
+		"pod_neuroncore_reserved_capacity":      UnitPercent,
+		"pod_neuroncore_unreserved_capacity":    UnitPercent,
 	}
 	tags = map[string]string{
 		"ClusterName":  "eks-aoc",
