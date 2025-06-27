@@ -57,6 +57,7 @@ func IsNode(mType string) bool {
 		TypeNodeEFA,
 		TypeNodeFS,
 		TypeNodeGPU,
+		TypeNodeNeuroncore,
 		TypeNodeNet,
 		TypeHyperPodNode:
 		return true
@@ -81,7 +82,8 @@ func IsContainer(mType string) bool {
 		TypeContainerDiskIO,
 		TypeContainerEFA,
 		TypeContainerFS,
-		TypeContainerGPU:
+		TypeContainerGPU,
+		TypeContainerNeuroncore: // Add neuroncore container type classification
 		return true
 	}
 	return false
@@ -94,6 +96,7 @@ func IsPod(mType string) bool {
 		TypePod,
 		TypePodEFA,
 		TypePodGPU,
+		TypePodNeuroncore,
 		TypePodNet:
 		return true
 	}
