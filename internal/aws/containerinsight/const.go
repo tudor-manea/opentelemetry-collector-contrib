@@ -194,16 +194,19 @@ const (
 
 	// Special type for pause container
 	// because containerd does not set container name pause container name to POD like docker does.
-	TypeInfraContainer = "InfraContainer"
-	TypeContainerGPU   = "ContainerGPU"
-	TypePodGPU         = "PodGPU"
-	TypeNodeGPU        = "NodeGPU"
-	TypeClusterGPU     = "ClusterGPU"
-	TypeContainerEFA   = "ContainerEFA"
-	TypePodEFA         = "PodEFA"
-	TypeNodeEFA        = "NodeEFA"
-	TypeHyperPodNode   = "HyperPodNode"
-	TypeNodeNVME       = "NodeNVME"
+	TypeInfraContainer      = "InfraContainer"
+	TypeContainerGPU        = "ContainerGPU"
+	TypePodGPU              = "PodGPU"
+	TypeNodeGPU             = "NodeGPU"
+	TypeClusterGPU          = "ClusterGPU"
+	TypeContainerNeuroncore = "ContainerNeuroncore"
+	TypePodNeuroncore       = "PodNeuroncore"
+	TypeNodeNeuroncore      = "NodeNeuroncore"
+	TypeContainerEFA        = "ContainerEFA"
+	TypePodEFA              = "PodEFA"
+	TypeNodeEFA             = "NodeEFA"
+	TypeHyperPodNode        = "HyperPodNode"
+	TypeNodeNVME            = "NodeNVME"
 
 	// unit
 	UnitBytes       = "Bytes"
