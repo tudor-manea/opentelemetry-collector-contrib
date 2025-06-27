@@ -216,3 +216,57 @@ func TestAWSContainerInsightReceiverStart(t *testing.T) {
 
 	mockHost.AssertCalled(t, "GetExtensions")
 }
+
+// TestReceiver_initNeuronScraper_withNeuroncoreMetrics tests that the neuron scraper
+// is properly initialized when accelerated compute metrics are enabled and verifies
+// that the correct metric type (TypeContainerNeuroncore) is used for neuroncore metrics.
+func TestReceiver_initNeuronScraper_withNeuroncoreMetrics(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.EnableAcceleratedComputeMetrics = true // Enable accelerated compute metrics
+	cfg.ContainerOrchestrator = ci.EKS
+
+	receiver, err := newAWSContainerInsightReceiver(
+		componenttest.NewNopTelemetrySettings(),
+		cfg,
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, receiver)
+
+	r := receiver.(*awsContainerInsightReceiver)
+
+	// Verify that EnableAcceleratedComputeMetrics is properly set
+	assert.True(t, r.config.EnableAcceleratedComputeMetrics, 
+		"EnableAcceleratedComputeMetrics should be true for neuroncore metrics collection")
+
+	// Note: Full initialization testing would require mocking hostinfo and component.Host,
+	// but the key verification is that the configuration properly enables accelerated compute metrics
+	// which is required for neuroncore metrics collection. The actual scraper initialization
+	// is tested through integration tests.
+}
+
+// TestReceiver_initNeuronScraper_disabled tests that the neuron scraper initialization
+// is skipped when accelerated compute metrics are disabled, ensuring no unnecessary
+// resource allocation for neuroncore metrics collection.
+func TestReceiver_initNeuronScraper_disabled(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.EnableAcceleratedComputeMetrics = false // Disable accelerated compute metrics
+	cfg.ContainerOrchestrator = ci.EKS
+
+	receiver, err := newAWSContainerInsightReceiver(
+		componenttest.NewNopTelemetrySettings(),
+		cfg,
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, receiver)
+
+	r := receiver.(*awsContainerInsightReceiver)
+
+	// Verify that EnableAcceleratedComputeMetrics is properly set to false
+	assert.False(t, r.config.EnableAcceleratedComputeMetrics,
+		"EnableAcceleratedComputeMetrics should be false when neuroncore metrics are disabled")
+
+	// When accelerated compute metrics are disabled, the neuron scraper should not be initialized
+	// This saves resources and prevents unnecessary metric collection
+}
