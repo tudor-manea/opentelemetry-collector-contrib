@@ -722,6 +722,62 @@ func TestNodeInfo_getNodeStatusCapacityNeuroncores(t *testing.T) {
 	}
 }
 
+// TestPodStore_decorateNode_withMultipleNeuronCorePods tests node-level neuroncore metric aggregation
+// when multiple pods on the same node are using neuroncores. This ensures that node-level metrics
+// properly aggregate individual pod neuroncore usage and calculate correct capacity percentages.
+func TestPodStore_decorateNode_withMultipleNeuronCorePods(t *testing.T) {
+	t.Setenv(ci.HostName, "testNode1")
+	podStore := getPodStoreWithNeuroncoreCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	// Create multiple pods with different neuroncore requirements
+	pod1 := getTestPodWithNeuroncoreInfo()
+	pod1.Name = "neuron-pod-1"
+	// pod1 has: request=1, limit=2 neuroncores
+
+	pod2 := getTestPodWithNeuroncoreInfo()
+	pod2.Name = "neuron-pod-2"
+	// Modify pod2 to have different neuroncore requirements
+	pod2.Spec.Containers[0].Resources.Requests["aws.amazon.com/neuroncore"] = resource.MustParse("2")
+	pod2.Spec.Containers[0].Resources.Limits["aws.amazon.com/neuroncore"] = resource.MustParse("4")
+	// pod2 has: request=2, limit=4 neuroncores
+
+	// Add pods to the store using refreshInternal
+	podList := []corev1.Pod{*pod1, *pod2}
+	podStore.refreshInternal(time.Now(), podList)
+
+	// Create node-level metric
+	tags := map[string]string{ci.MetricType: ci.TypeNode}
+	fields := map[string]any{
+		// Add some base node metrics
+		ci.MetricName(ci.TypeNode, ci.CPUTotal):      float64(1000),
+		ci.MetricName(ci.TypeNode, ci.MemWorkingset): float64(2048),
+	}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+
+	// Decorate the node metric - this should aggregate neuroncore metrics from all pods
+	podStore.decorateNode(metric)
+
+	// Verify aggregated neuroncore metrics at node level
+	// Total requests: pod1(1) + pod2(2) = 3
+	assert.Equal(t, uint64(3), metric.GetField("node_neuroncore_request").(uint64))
+	
+	// Node limit is the total node capacity (16 neuroncores), not sum of pod limits
+	assert.Equal(t, uint64(16), metric.GetField("node_neuroncore_limit").(uint64))
+	
+	// Total usage: pod1(2) + pod2(4) = 6 (since both pods are running, usage_total = limit)
+	assert.Equal(t, uint64(6), metric.GetField("node_neuroncore_usage_total").(uint64))
+	
+	// Reserved capacity: 3 neuroncores requested out of 16 total = 18.75%
+	assert.Equal(t, float64(18.75), metric.GetField("node_neuroncore_reserved_capacity").(float64))
+	
+	// Unreserved capacity: 100% - 18.75% = 81.25%
+	assert.Equal(t, float64(81.25), metric.GetField("node_neuroncore_unreserved_capacity").(float64))
+}
+
 func TestPodStore_previousCleanupLocking(_ *testing.T) {
 	podStore := getPodStore()
 	podStore.podClient = &mockPodClient{}
