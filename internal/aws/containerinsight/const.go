@@ -141,6 +141,12 @@ const (
 	EfaRxDropped          = "rx_dropped"
 	EfaTxBytes            = "tx_bytes"
 
+	EfaLimit              = "efa_limit"
+	EfaUsageTotal         = "efa_usage_total"
+	EfaRequest            = "efa_request"
+	EfaReservedCapacity   = "efa_reserved_capacity"
+	EfaUnreservedCapacity = "efa_unreserved_capacity"
+
 	GpuLimit              = "gpu_limit"
 	GpuUsageTotal         = "gpu_usage_total"
 	GpuRequest            = "gpu_request"
@@ -370,6 +376,12 @@ func init() {
 		EfaRxBytes:            UnitBytesPerSec,
 		EfaRxDropped:          UnitCountPerSec,
 		EfaTxBytes:            UnitBytesPerSec,
+
+		EfaLimit:              UnitCount,
+		EfaUsageTotal:         UnitCount,
+		EfaRequest:            UnitCount,
+		EfaReservedCapacity:   UnitPercent,
+		EfaUnreservedCapacity: UnitPercent,
 
 		GpuLimit:              UnitCount,
 		GpuUsageTotal:         UnitCount,
