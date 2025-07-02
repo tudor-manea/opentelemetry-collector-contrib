@@ -24,6 +24,7 @@ const (
 	cronJobAllowedString       = "0123456789"
 	resourceSpecNvidiaGpuKey   = "nvidia.com/gpu"
 	resourceSpecNeuroncoreKey  = "aws.amazon.com/neuroncore"
+	resourceSpecEfaKey         = "vpc.amazonaws.com/efa"
 )
 
 func createPodKeyFromMetaData(pod *corev1.Pod) string {
