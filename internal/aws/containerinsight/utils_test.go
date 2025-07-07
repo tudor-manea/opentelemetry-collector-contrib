@@ -450,6 +450,11 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_neuroncore_usage_total":         int32(6),
 		"node_neuroncore_reserved_capacity":   25.0,
 		"node_neuroncore_unreserved_capacity": 75.0,
+		"node_efa_request":                    int32(2),
+		"node_efa_limit":                      int32(4),
+		"node_efa_usage_total":                int32(3),
+		"node_efa_reserved_capacity":          50.0,
+		"node_efa_unreserved_capacity":        50.0,
 	}
 	expectedUnits = map[string]string{
 		"node_cpu_limit":                      "",
@@ -496,6 +501,11 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_neuroncore_usage_total":         UnitCount,
 		"node_neuroncore_reserved_capacity":   UnitPercent,
 		"node_neuroncore_unreserved_capacity": UnitPercent,
+		"node_efa_request":                    UnitCount,
+		"node_efa_limit":                      UnitCount,
+		"node_efa_usage_total":                UnitCount,
+		"node_efa_reserved_capacity":          UnitPercent,
+		"node_efa_unreserved_capacity":        UnitPercent,
 	}
 	tags = map[string]string{
 		"AutoScalingGroupName": "eks-a6bb9db9-267c-401c-db55-df8ef645b06f",
@@ -755,6 +765,11 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_neuroncore_usage_total":            2,
 		"pod_neuroncore_reserved_capacity":      12.5,
 		"pod_neuroncore_unreserved_capacity":    87.5,
+		"pod_efa_request":                       1,
+		"pod_efa_limit":                         2,
+		"pod_efa_usage_total":                   2,
+		"pod_efa_reserved_capacity":             50.0,
+		"pod_efa_unreserved_capacity":           50.0,
 	}
 	expectedUnits = map[string]string{
 		"pod_cpu_limit":                         "",
@@ -811,6 +826,11 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_neuroncore_usage_total":            UnitCount,
 		"pod_neuroncore_reserved_capacity":      UnitPercent,
 		"pod_neuroncore_unreserved_capacity":    UnitPercent,
+		"pod_efa_request":                       UnitCount,
+		"pod_efa_limit":                         UnitCount,
+		"pod_efa_usage_total":                   UnitCount,
+		"pod_efa_reserved_capacity":             UnitPercent,
+		"pod_efa_unreserved_capacity":           UnitPercent,
 	}
 	tags = map[string]string{
 		"ClusterName":  "eks-aoc",
