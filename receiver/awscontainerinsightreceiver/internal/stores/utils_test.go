@@ -70,6 +70,7 @@ func (m *mockNodeInfoProvider) NodeToCapacityMap() map[string]v1.ResourceList {
 			"pods":                      *resource.NewQuantity(5, resource.DecimalSI),
 			"nvidia.com/gpu":            *resource.NewQuantity(20, resource.DecimalExponent),
 			"aws.amazon.com/neuroncore": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa":     *resource.NewQuantity(4, resource.DecimalSI),
 		},
 		"testNode2": {
 			"pods": *resource.NewQuantity(10, resource.DecimalSI),
@@ -83,6 +84,7 @@ func (m *mockNodeInfoProvider) NodeToAllocatableMap() map[string]v1.ResourceList
 			"pods":                      *resource.NewQuantity(15, resource.DecimalSI),
 			"nvidia.com/gpu":            *resource.NewQuantity(20, resource.DecimalExponent),
 			"aws.amazon.com/neuroncore": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa":     *resource.NewQuantity(4, resource.DecimalSI),
 		},
 		"testNode2": {
 			"pods": *resource.NewQuantity(20, resource.DecimalSI),
