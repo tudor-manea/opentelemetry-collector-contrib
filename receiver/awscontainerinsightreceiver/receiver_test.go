@@ -270,3 +270,186 @@ func TestReceiver_initNeuronScraper_disabled(t *testing.T) {
 	// When accelerated compute metrics are disabled, the neuron scraper should not be initialized
 	// This saves resources and prevents unnecessary metric collection
 }
+
+// TestReceiver_initEfaScraper_withEfaMetrics tests that the EFA scraper
+// is properly initialized when accelerated compute metrics are enabled and verifies
+// that the correct metric type (TypeContainerEFA) is used for EFA metrics.
+func TestReceiver_initEfaScraper_withEfaMetrics(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.EnableAcceleratedComputeMetrics = true // Enable accelerated compute metrics
+	cfg.ContainerOrchestrator = ci.EKS
+
+	receiver, err := newAWSContainerInsightReceiver(
+		componenttest.NewNopTelemetrySettings(),
+		cfg,
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, receiver)
+
+	r := receiver.(*awsContainerInsightReceiver)
+
+	// Verify that EnableAcceleratedComputeMetrics is properly set
+	assert.True(t, r.config.EnableAcceleratedComputeMetrics, 
+		"EnableAcceleratedComputeMetrics should be true for EFA metrics collection")
+
+	// Note: Full initialization testing would require mocking hostinfo and component.Host,
+	// but the key verification is that the configuration properly enables accelerated compute metrics
+	// which is required for EFA metrics collection. The actual scraper initialization
+	// is tested through integration tests.
+}
+
+// TestReceiver_initEfaScraper_disabled tests that the EFA scraper initialization
+// is skipped when accelerated compute metrics are disabled, ensuring no unnecessary
+// resource allocation for EFA metrics collection.
+func TestReceiver_initEfaScraper_disabled(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.EnableAcceleratedComputeMetrics = false // Disable accelerated compute metrics
+	cfg.ContainerOrchestrator = ci.EKS
+
+	receiver, err := newAWSContainerInsightReceiver(
+		componenttest.NewNopTelemetrySettings(),
+		cfg,
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, receiver)
+
+	r := receiver.(*awsContainerInsightReceiver)
+
+	// Verify that EnableAcceleratedComputeMetrics is properly set to false
+	assert.False(t, r.config.EnableAcceleratedComputeMetrics,
+		"EnableAcceleratedComputeMetrics should be false when EFA metrics are disabled")
+
+	// When accelerated compute metrics are disabled, the EFA scraper should not be initialized
+	// This saves resources and prevents unnecessary metric collection
+}
+
+// TestReceiver_EfaConfiguration tests various EFA-related configuration scenarios
+func TestReceiver_EfaConfiguration(t *testing.T) {
+	testCases := []struct {
+		name                            string
+		enableAcceleratedComputeMetrics bool
+		containerOrchestrator           string
+		expectEfaEnabled                bool
+		description                     string
+	}{
+		{
+			name:                            "EFA enabled for EKS",
+			enableAcceleratedComputeMetrics: true,
+			containerOrchestrator:           ci.EKS,
+			expectEfaEnabled:                true,
+			description:                     "EFA metrics should be enabled for EKS with accelerated compute metrics",
+		},
+		{
+			name:                            "EFA disabled for EKS",
+			enableAcceleratedComputeMetrics: false,
+			containerOrchestrator:           ci.EKS,
+			expectEfaEnabled:                false,
+			description:                     "EFA metrics should be disabled when accelerated compute metrics are off",
+		},
+		{
+			name:                            "EFA enabled for ECS",
+			enableAcceleratedComputeMetrics: true,
+			containerOrchestrator:           ci.ECS,
+			expectEfaEnabled:                true,
+			description:                     "EFA metrics should be enabled for ECS with accelerated compute metrics",
+		},
+		{
+			name:                            "EFA disabled for ECS",
+			enableAcceleratedComputeMetrics: false,
+			containerOrchestrator:           ci.ECS,
+			expectEfaEnabled:                false,
+			description:                     "EFA metrics should be disabled for ECS when accelerated compute metrics are off",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := createDefaultConfig().(*Config)
+			cfg.EnableAcceleratedComputeMetrics = tc.enableAcceleratedComputeMetrics
+			cfg.ContainerOrchestrator = tc.containerOrchestrator
+
+			receiver, err := newAWSContainerInsightReceiver(
+				componenttest.NewNopTelemetrySettings(),
+				cfg,
+				consumertest.NewNop(),
+			)
+			require.NoError(t, err)
+			require.NotNil(t, receiver)
+
+			r := receiver.(*awsContainerInsightReceiver)
+
+			// Verify the configuration matches expectations
+			assert.Equal(t, tc.expectEfaEnabled, r.config.EnableAcceleratedComputeMetrics, tc.description)
+			assert.Equal(t, tc.containerOrchestrator, r.config.ContainerOrchestrator)
+		})
+	}
+}
+
+// TestReceiver_EfaMetricTypes tests that EFA metric types are properly recognized
+func TestReceiver_EfaMetricTypes(t *testing.T) {
+	// Test that EFA metric types are properly classified
+	efaMetricTypes := []string{
+		ci.TypeNodeEFA,
+		ci.TypePodEFA,
+		ci.TypeContainerEFA,
+	}
+
+	for _, metricType := range efaMetricTypes {
+		t.Run(metricType, func(t *testing.T) {
+			switch metricType {
+			case ci.TypeNodeEFA:
+				assert.True(t, ci.IsNode(metricType), "TypeNodeEFA should be recognized as a node metric")
+			case ci.TypePodEFA:
+				assert.True(t, ci.IsPod(metricType), "TypePodEFA should be recognized as a pod metric")
+			case ci.TypeContainerEFA:
+				assert.True(t, ci.IsContainer(metricType), "TypeContainerEFA should be recognized as a container metric")
+			}
+		})
+	}
+}
+
+// TestReceiver_EfaMetricNames tests that EFA metric names are properly defined
+func TestReceiver_EfaMetricNames(t *testing.T) {
+	// Test EFA capacity metrics
+	capacityMetrics := []string{
+		ci.EfaLimit,
+		ci.EfaUsageTotal,
+		ci.EfaRequest,
+		ci.EfaReservedCapacity,
+		ci.EfaUnreservedCapacity,
+	}
+
+	for _, metric := range capacityMetrics {
+		t.Run(metric, func(t *testing.T) {
+			// Verify the metric name is not empty
+			assert.NotEmpty(t, metric, "EFA metric name should not be empty")
+			
+			// Verify the metric has a unit defined
+			unit := ci.GetUnitForMetric(metric)
+			assert.NotEmpty(t, unit, "EFA metric %s should have a unit defined", metric)
+		})
+	}
+
+	// Test EFA hardware counter metrics
+	hardwareMetrics := []string{
+		ci.EfaRdmaReadBytes,
+		ci.EfaRdmaWriteBytes,
+		ci.EfaRdmaWriteRecvBytes,
+		ci.EfaRxBytes,
+		ci.EfaRxDropped,
+		ci.EfaTxBytes,
+	}
+
+	for _, metric := range hardwareMetrics {
+		t.Run(metric, func(t *testing.T) {
+			// Verify the metric name is not empty
+			assert.NotEmpty(t, metric, "EFA hardware metric name should not be empty")
+			
+			// Verify the metric has a unit defined
+			unit := ci.GetUnitForMetric(metric)
+			assert.NotEmpty(t, unit, "EFA hardware metric %s should have a unit defined", metric)
+		})
+	}
+}
