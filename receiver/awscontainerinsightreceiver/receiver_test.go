@@ -217,10 +217,10 @@ func TestAWSContainerInsightReceiverStart(t *testing.T) {
 	mockHost.AssertCalled(t, "GetExtensions")
 }
 
-// TestReceiver_initNeuronScraper_withNeuroncoreMetrics tests that the neuron scraper
+// TestReceiver_initNeuronScraper_withNeuronMetrics tests that the neuron scraper
 // is properly initialized when accelerated compute metrics are enabled and verifies
-// that the correct metric type (TypeContainerNeuroncore) is used for neuroncore metrics.
-func TestReceiver_initNeuronScraper_withNeuroncoreMetrics(t *testing.T) {
+// that the correct metric type (TypeContainerNeuron) is used for neuron metrics.
+func TestReceiver_initNeuronScraper_withNeuronMetrics(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.EnableAcceleratedComputeMetrics = true // Enable accelerated compute metrics
 	cfg.ContainerOrchestrator = ci.EKS
@@ -236,18 +236,18 @@ func TestReceiver_initNeuronScraper_withNeuroncoreMetrics(t *testing.T) {
 	r := receiver.(*awsContainerInsightReceiver)
 
 	// Verify that EnableAcceleratedComputeMetrics is properly set
-	assert.True(t, r.config.EnableAcceleratedComputeMetrics, 
-		"EnableAcceleratedComputeMetrics should be true for neuroncore metrics collection")
+	assert.True(t, r.config.EnableAcceleratedComputeMetrics,
+		"EnableAcceleratedComputeMetrics should be true for neuron metrics collection")
 
 	// Note: Full initialization testing would require mocking hostinfo and component.Host,
 	// but the key verification is that the configuration properly enables accelerated compute metrics
-	// which is required for neuroncore metrics collection. The actual scraper initialization
+	// which is required for neuron metrics collection. The actual scraper initialization
 	// is tested through integration tests.
 }
 
 // TestReceiver_initNeuronScraper_disabled tests that the neuron scraper initialization
 // is skipped when accelerated compute metrics are disabled, ensuring no unnecessary
-// resource allocation for neuroncore metrics collection.
+// resource allocation for neuron metrics collection.
 func TestReceiver_initNeuronScraper_disabled(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.EnableAcceleratedComputeMetrics = false // Disable accelerated compute metrics
@@ -265,7 +265,7 @@ func TestReceiver_initNeuronScraper_disabled(t *testing.T) {
 
 	// Verify that EnableAcceleratedComputeMetrics is properly set to false
 	assert.False(t, r.config.EnableAcceleratedComputeMetrics,
-		"EnableAcceleratedComputeMetrics should be false when neuroncore metrics are disabled")
+		"EnableAcceleratedComputeMetrics should be false when neuron metrics are disabled")
 
 	// When accelerated compute metrics are disabled, the neuron scraper should not be initialized
 	// This saves resources and prevents unnecessary metric collection
@@ -290,7 +290,7 @@ func TestReceiver_initEfaScraper_withEfaMetrics(t *testing.T) {
 	r := receiver.(*awsContainerInsightReceiver)
 
 	// Verify that EnableAcceleratedComputeMetrics is properly set
-	assert.True(t, r.config.EnableAcceleratedComputeMetrics, 
+	assert.True(t, r.config.EnableAcceleratedComputeMetrics,
 		"EnableAcceleratedComputeMetrics should be true for EFA metrics collection")
 
 	// Note: Full initialization testing would require mocking hostinfo and component.Host,
@@ -425,7 +425,7 @@ func TestReceiver_EfaMetricNames(t *testing.T) {
 		t.Run(metric, func(t *testing.T) {
 			// Verify the metric name is not empty
 			assert.NotEmpty(t, metric, "EFA metric name should not be empty")
-			
+
 			// Verify the metric has a unit defined
 			unit := ci.GetUnitForMetric(metric)
 			assert.NotEmpty(t, unit, "EFA metric %s should have a unit defined", metric)
@@ -446,7 +446,7 @@ func TestReceiver_EfaMetricNames(t *testing.T) {
 		t.Run(metric, func(t *testing.T) {
 			// Verify the metric name is not empty
 			assert.NotEmpty(t, metric, "EFA hardware metric name should not be empty")
-			
+
 			// Verify the metric has a unit defined
 			unit := ci.GetUnitForMetric(metric)
 			assert.NotEmpty(t, unit, "EFA hardware metric %s should have a unit defined", metric)

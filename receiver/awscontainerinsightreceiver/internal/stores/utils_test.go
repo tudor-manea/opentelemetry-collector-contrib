@@ -67,10 +67,10 @@ type mockNodeInfoProvider struct{}
 func (m *mockNodeInfoProvider) NodeToCapacityMap() map[string]v1.ResourceList {
 	return map[string]v1.ResourceList{
 		"testNode1": {
-			"pods":                      *resource.NewQuantity(5, resource.DecimalSI),
-			"nvidia.com/gpu":            *resource.NewQuantity(20, resource.DecimalExponent),
-			"aws.amazon.com/neuroncore": *resource.NewQuantity(16, resource.DecimalSI),
-			"vpc.amazonaws.com/efa":     *resource.NewQuantity(4, resource.DecimalSI),
+			"pods":                  *resource.NewQuantity(5, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa": *resource.NewQuantity(4, resource.DecimalSI),
 		},
 		"testNode2": {
 			"pods": *resource.NewQuantity(10, resource.DecimalSI),
@@ -81,10 +81,10 @@ func (m *mockNodeInfoProvider) NodeToCapacityMap() map[string]v1.ResourceList {
 func (m *mockNodeInfoProvider) NodeToAllocatableMap() map[string]v1.ResourceList {
 	return map[string]v1.ResourceList{
 		"testNode1": {
-			"pods":                      *resource.NewQuantity(15, resource.DecimalSI),
-			"nvidia.com/gpu":            *resource.NewQuantity(20, resource.DecimalExponent),
-			"aws.amazon.com/neuroncore": *resource.NewQuantity(16, resource.DecimalSI),
-			"vpc.amazonaws.com/efa":     *resource.NewQuantity(4, resource.DecimalSI),
+			"pods":                  *resource.NewQuantity(15, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa": *resource.NewQuantity(4, resource.DecimalSI),
 		},
 		"testNode2": {
 			"pods": *resource.NewQuantity(20, resource.DecimalSI),
@@ -208,7 +208,7 @@ func TestUtils_TagMetricSource(t *testing.T) {
 		ci.TypeInstanceNet,
 		ci.TypeInstanceDiskIO,
 		ci.TypeContainerGPU,
-		ci.TypeContainerNeuroncore,
+		ci.TypeContainerNeuron,
 	}
 
 	expectedSources := []string{

@@ -23,7 +23,7 @@ const (
 	kubeAllowedStringAlphaNums = "bcdfghjklmnpqrstvwxz2456789"
 	cronJobAllowedString       = "0123456789"
 	resourceSpecNvidiaGpuKey   = "nvidia.com/gpu"
-	resourceSpecNeuroncoreKey  = "aws.amazon.com/neuroncore"
+	resourceSpecNeuronKey      = "aws.amazon.com/neuron"
 	resourceSpecEfaKey         = "vpc.amazonaws.com/efa"
 )
 
@@ -144,7 +144,7 @@ func tagMetricSourceLinux(metric CIMetric) {
 		sources = []string{"cadvisor"}
 	case ci.TypeContainerGPU:
 		sources = []string{"dcgm", "pod", "calculated"}
-	case ci.TypeContainerNeuroncore:
+	case ci.TypeContainerNeuron:
 		sources = []string{"neuron", "pod", "calculated"}
 	}
 

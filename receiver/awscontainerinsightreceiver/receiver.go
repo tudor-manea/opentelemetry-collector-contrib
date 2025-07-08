@@ -363,7 +363,7 @@ func (acir *awsContainerInsightReceiver) initNeuronScraper(ctx context.Context, 
 	decoConsumer := decoratorconsumer.DecorateConsumer{
 		ContainerOrchestrator: ci.EKS,
 		NextConsumer:          acir.nextConsumer,
-		MetricType:            ci.TypeContainerNeuroncore,
+		MetricType:            ci.TypeContainerNeuron,
 		K8sDecorator:          localNodeDecorator,
 		Logger:                acir.settings.Logger,
 	}

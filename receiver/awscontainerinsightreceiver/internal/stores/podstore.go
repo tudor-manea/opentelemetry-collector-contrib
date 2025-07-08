@@ -29,7 +29,7 @@ const (
 	memoryKey          = "memory"
 	cpuKey             = "cpu"
 	gpuKey             = "nvidia.com/gpu"
-	neuroncoreKey      = "aws.amazon.com/neuroncore"
+	neuronKey          = "aws.amazon.com/neuron"
 	efaKey             = "vpc.amazonaws.com/efa"
 	splitRegexStr      = "\\.|-"
 	kubeProxy          = "kube-proxy"
@@ -249,14 +249,13 @@ func (p *PodStore) Decorate(ctx context.Context, metric CIMetric, kubernetesBlob
 		p.decorateCPU(metric, &entry.pod)
 		p.decorateMem(metric, &entry.pod)
 		p.decorateGPU(metric, &entry.pod)
-		p.decorateNeuroncore(metric, &entry.pod)
+		p.decorateNeuron(metric, &entry.pod)
 		p.decorateEfa(metric, &entry.pod)
-			p.addStatus(metric, &entry.pod)
-			addContainerCount(metric, &entry.pod)
-			addContainerID(&entry.pod, metric, kubernetesBlob, p.logger)
-			p.addPodOwnersAndPodName(metric, &entry.pod, kubernetesBlob)
-			addLabels(&entry.pod, kubernetesBlob)
-
+		p.addStatus(metric, &entry.pod)
+		addContainerCount(metric, &entry.pod)
+		addContainerID(&entry.pod, metric, kubernetesBlob, p.logger)
+		p.addPodOwnersAndPodName(metric, &entry.pod, kubernetesBlob)
+		addLabels(&entry.pod, kubernetesBlob)
 	}
 	return true
 }
@@ -303,8 +302,8 @@ func (p *PodStore) refreshInternal(now time.Time, podList []corev1.Pod) {
 	var memRequest uint64
 	var gpuRequest uint64
 	var gpuUsageTotal uint64
-	var neuroncoreRequest uint64
-	var neuroncoreUsageTotal uint64
+	var neuronRequest uint64
+	var neuronUsageTotal uint64
 	var efaRequest uint64
 	var efaUsageTotal uint64
 
@@ -321,11 +320,11 @@ func (p *PodStore) refreshInternal(now time.Time, podList []corev1.Pod) {
 			cpuRequest += tmpCPUReq
 			tmpMemReq, _ := getResourceSettingForPod(&pod, p.nodeInfo.getMemCapacity(), memoryKey, getRequestForContainer)
 			memRequest += tmpMemReq
-			if tmpNeuroncoreLimit, ok := getResourceSettingForPod(&pod, 0, neuroncoreKey, getLimitForContainer); ok {
-				tmpNeuroncoreReq, _ := getResourceSettingForPod(&pod, 0, neuroncoreKey, getRequestForContainer)
-				neuroncoreRequest += tmpNeuroncoreReq
+			if tmpNeuronLimit, ok := getResourceSettingForPod(&pod, 0, neuronKey, getLimitForContainer); ok {
+				tmpNeuronReq, _ := getResourceSettingForPod(&pod, 0, neuronKey, getRequestForContainer)
+				neuronRequest += tmpNeuronReq
 				if pod.Status.Phase == corev1.PodRunning {
-					neuroncoreUsageTotal += tmpNeuroncoreLimit
+					neuronUsageTotal += tmpNeuronLimit
 				}
 			}
 			if tmpGpuLimit, ok := getResourceSettingForPod(&pod, 0, gpuKey, getLimitForContainer); ok {
@@ -360,16 +359,16 @@ func (p *PodStore) refreshInternal(now time.Time, podList []corev1.Pod) {
 	}
 
 	p.nodeInfo.setNodeStats(nodeStats{
-		podCnt:               podCount,
-		containerCnt:         containerCount,
-		memReq:               memRequest,
-		cpuReq:               cpuRequest,
-		gpuReq:               gpuRequest,
-		gpuUsageTotal:        gpuUsageTotal,
-		neuroncoreReq:        neuroncoreRequest,
-		neuroncoreUsageTotal: neuroncoreUsageTotal,
-		efaReq:               efaRequest,
-		efaUsageTotal:        efaUsageTotal,
+		podCnt:           podCount,
+		containerCnt:     containerCount,
+		memReq:           memRequest,
+		cpuReq:           cpuRequest,
+		gpuReq:           gpuRequest,
+		gpuUsageTotal:    gpuUsageTotal,
+		neuronReq:        neuronRequest,
+		neuronUsageTotal: neuronUsageTotal,
+		efaReq:           efaRequest,
+		efaUsageTotal:    efaUsageTotal,
 	})
 }
 
@@ -437,18 +436,17 @@ func (p *PodStore) decorateNode(metric CIMetric) {
 				reservedCapacity := float64(nodeStats.gpuReq) / float64(nodeStatusCapacityGPUs) * 100
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.GpuReservedCapacity), reservedCapacity)
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.GpuUnreservedCapacity), 100.0-reservedCapacity)
-
 			}
 
-			// neuroncore logic
-			if nodeStatusCapacityNeuroncores, ok := p.nodeInfo.getNodeStatusCapacityNeuroncores(); ok && nodeStatusCapacityNeuroncores != 0 {
-				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuroncoreRequest), nodeStats.neuroncoreReq)
-				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuroncoreLimit), nodeStatusCapacityNeuroncores)
-				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuroncoreUsageTotal), nodeStats.neuroncoreUsageTotal)
+			// neuron logic
+			if nodeStatusCapacityNeuron, ok := p.nodeInfo.getNodeStatusCapacityNeuron(); ok && nodeStatusCapacityNeuron != 0 {
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronRequest), nodeStats.neuronReq)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronLimit), nodeStatusCapacityNeuron)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronUsageTotal), nodeStats.neuronUsageTotal)
 
-				reservedCapacity := float64(nodeStats.neuroncoreReq) / float64(nodeStatusCapacityNeuroncores) * 100
-				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuroncoreReservedCapacity), reservedCapacity)
-				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuroncoreUnreservedCapacity), 100.0-reservedCapacity)
+				reservedCapacity := float64(nodeStats.neuronReq) / float64(nodeStatusCapacityNeuron) * 100
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronReservedCapacity), reservedCapacity)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronUnreservedCapacity), 100.0-reservedCapacity)
 			}
 
 			// efa logic
@@ -482,28 +480,27 @@ func (p *PodStore) decorateGPU(metric CIMetric, pod *corev1.Pod) {
 				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuReservedCapacity), reservedCapacity)
 				// new unresolved capacity metric
 				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuUnreservedCapacity), 100.0-reservedCapacity)
-
 			}
 		}
 	}
 }
 
-func (p *PodStore) decorateNeuroncore(metric CIMetric, pod *corev1.Pod) {
+func (p *PodStore) decorateNeuron(metric CIMetric, pod *corev1.Pod) {
 	if p.includeEnhancedMetrics && p.enableAcceleratedComputeMetrics && metric.GetTag(ci.MetricType) == ci.TypePod &&
 		pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
-		if podNeuroncoreLimit, ok := getResourceSettingForPod(pod, 0, neuroncoreKey, getLimitForContainer); ok {
-			podNeuroncoreRequest, _ := getResourceSettingForPod(pod, 0, neuroncoreKey, getRequestForContainer)
-			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreRequest), podNeuroncoreRequest)
-			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreLimit), podNeuroncoreLimit)
-			var podNeuroncoreUsageTotal uint64
-			if pod.Status.Phase == corev1.PodRunning { // Set the neuroncore limit as the usage_total for running pods only
-				podNeuroncoreUsageTotal = podNeuroncoreLimit
+		if podNeuronLimit, ok := getResourceSettingForPod(pod, 0, neuronKey, getLimitForContainer); ok {
+			podNeuronRequest, _ := getResourceSettingForPod(pod, 0, neuronKey, getRequestForContainer)
+			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronRequest), podNeuronRequest)
+			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronLimit), podNeuronLimit)
+			var podNeuronUsageTotal uint64
+			if pod.Status.Phase == corev1.PodRunning { // Set the neuron limit as the usage_total for running pods only
+				podNeuronUsageTotal = podNeuronLimit
 			}
-			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreUsageTotal), podNeuroncoreUsageTotal)
-			if nodeStatusCapacityNeuroncores, ok := p.nodeInfo.getNodeStatusCapacityNeuroncores(); ok && nodeStatusCapacityNeuroncores != 0 {
-				reservedCapacity := float64(podNeuroncoreLimit) / float64(nodeStatusCapacityNeuroncores) * 100
-				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreReservedCapacity), reservedCapacity)
-				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreUnreservedCapacity), 100.0-reservedCapacity)
+			metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronUsageTotal), podNeuronUsageTotal)
+			if nodeStatusCapacityNeuron, ok := p.nodeInfo.getNodeStatusCapacityNeuron(); ok && nodeStatusCapacityNeuron != 0 {
+				reservedCapacity := float64(podNeuronLimit) / float64(nodeStatusCapacityNeuron) * 100
+				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronReservedCapacity), reservedCapacity)
+				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronUnreservedCapacity), 100.0-reservedCapacity)
 			}
 		}
 	}
