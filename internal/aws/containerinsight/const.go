@@ -146,18 +146,21 @@ const (
 	EfaRequest            = "efa_request"
 	EfaReservedCapacity   = "efa_reserved_capacity"
 	EfaUnreservedCapacity = "efa_unreserved_capacity"
+	EfaAvailableCapacity  = "efa_available_capacity"
 
 	GpuLimit              = "gpu_limit"
 	GpuUsageTotal         = "gpu_usage_total"
 	GpuRequest            = "gpu_request"
 	GpuReservedCapacity   = "gpu_reserved_capacity"
 	GpuUnreservedCapacity = "gpu_unreserved_capacity"
+	GpuAvailableCapacity  = "gpu_available_capacity"
 
 	NeuronLimit              = "neuron_limit"
 	NeuronUsageTotal         = "neuron_usage_total"
 	NeuronRequest            = "neuron_request"
 	NeuronReservedCapacity   = "neuron_reserved_capacity"
 	NeuronUnreservedCapacity = "neuron_unreserved_capacity"
+	NeuronAvailableCapacity  = "neuron_available_capacity"
 
 	HyperPodUnschedulablePendingReplacement = "unschedulable_pending_replacement"
 	HyperPodUnschedulablePendingReboot      = "unschedulable_pending_reboot"
@@ -380,18 +383,21 @@ func init() {
 		EfaRequest:            UnitCount,
 		EfaReservedCapacity:   UnitPercent,
 		EfaUnreservedCapacity: UnitPercent,
+		EfaAvailableCapacity:  UnitCount,
 
 		GpuLimit:              UnitCount,
 		GpuUsageTotal:         UnitCount,
 		GpuRequest:            UnitCount,
 		GpuReservedCapacity:   UnitPercent,
 		GpuUnreservedCapacity: UnitPercent,
+		GpuAvailableCapacity:  UnitCount,
 
 		NeuronLimit:              UnitCount,
 		NeuronUsageTotal:         UnitCount,
 		NeuronRequest:            UnitCount,
 		NeuronReservedCapacity:   UnitPercent,
 		NeuronUnreservedCapacity: UnitPercent,
+		NeuronAvailableCapacity:  UnitCount,
 
 		HyperPodUnschedulablePendingReplacement: UnitCount,
 		HyperPodUnschedulablePendingReboot:      UnitCount,
