@@ -436,6 +436,7 @@ func (p *PodStore) decorateNode(metric CIMetric) {
 				reservedCapacity := float64(nodeStats.gpuReq) / float64(nodeStatusCapacityGPUs) * 100
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.GpuReservedCapacity), reservedCapacity)
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.GpuUnreservedCapacity), 100.0-reservedCapacity)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.GpuAvailableCapacity), nodeStatusCapacityGPUs-nodeStats.gpuReq)
 			}
 
 			// neuron logic
@@ -447,6 +448,7 @@ func (p *PodStore) decorateNode(metric CIMetric) {
 				reservedCapacity := float64(nodeStats.neuronReq) / float64(nodeStatusCapacityNeuron) * 100
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronReservedCapacity), reservedCapacity)
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronUnreservedCapacity), 100.0-reservedCapacity)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.NeuronAvailableCapacity), nodeStatusCapacityNeuron-nodeStats.neuronReq)
 			}
 
 			// efa logic
@@ -458,6 +460,7 @@ func (p *PodStore) decorateNode(metric CIMetric) {
 				reservedCapacity := float64(nodeStats.efaReq) / float64(nodeStatusCapacityEfas) * 100
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.EfaReservedCapacity), reservedCapacity)
 				metric.AddField(ci.MetricName(ci.TypeNode, ci.EfaUnreservedCapacity), 100.0-reservedCapacity)
+				metric.AddField(ci.MetricName(ci.TypeNode, ci.EfaAvailableCapacity), nodeStatusCapacityEfas-nodeStats.efaReq)
 			}
 		}
 	}
@@ -478,8 +481,8 @@ func (p *PodStore) decorateGPU(metric CIMetric, pod *corev1.Pod) {
 			if nodeStatusCapacityGPUs, ok := p.nodeInfo.getNodeStatusCapacityGPUs(); ok && nodeStatusCapacityGPUs != 0 {
 				reservedCapacity := float64(podGpuLimit) / float64(nodeStatusCapacityGPUs) * 100
 				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuReservedCapacity), reservedCapacity)
-				// new unresolved capacity metric
-				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuUnreservedCapacity), 100.0-reservedCapacity)
+				nodeStats := p.nodeInfo.getNodeStats()
+				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuAvailableCapacity), nodeStatusCapacityGPUs-nodeStats.gpuReq)
 			}
 		}
 	}
@@ -500,7 +503,8 @@ func (p *PodStore) decorateNeuron(metric CIMetric, pod *corev1.Pod) {
 			if nodeStatusCapacityNeuron, ok := p.nodeInfo.getNodeStatusCapacityNeuron(); ok && nodeStatusCapacityNeuron != 0 {
 				reservedCapacity := float64(podNeuronLimit) / float64(nodeStatusCapacityNeuron) * 100
 				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronReservedCapacity), reservedCapacity)
-				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronUnreservedCapacity), 100.0-reservedCapacity)
+				nodeStats := p.nodeInfo.getNodeStats()
+				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuronAvailableCapacity), nodeStatusCapacityNeuron-nodeStats.neuronReq)
 			}
 		}
 	}
@@ -521,7 +525,8 @@ func (p *PodStore) decorateEfa(metric CIMetric, pod *corev1.Pod) {
 			if nodeStatusCapacityEfas, ok := p.nodeInfo.getNodeStatusCapacityEfas(); ok && nodeStatusCapacityEfas != 0 {
 				reservedCapacity := float64(podEfaLimit) / float64(nodeStatusCapacityEfas) * 100
 				metric.AddField(ci.MetricName(ci.TypePod, ci.EfaReservedCapacity), reservedCapacity)
-				metric.AddField(ci.MetricName(ci.TypePod, ci.EfaUnreservedCapacity), 100.0-reservedCapacity)
+				nodeStats := p.nodeInfo.getNodeStats()
+				metric.AddField(ci.MetricName(ci.TypePod, ci.EfaAvailableCapacity), nodeStatusCapacityEfas-nodeStats.efaReq)
 			}
 		}
 	}
