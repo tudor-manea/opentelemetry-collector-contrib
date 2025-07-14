@@ -442,16 +442,19 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_usage_total":                int32(7),
 		"node_gpu_reserved_capacity":          3.0093851356081194,
 		"node_gpu_unreserved_capacity":        2.9303736689169724,
+		"node_gpu_available_capacity":         uint64(35), // available capacity as count
 		"node_neuron_request":                 int32(4),
 		"node_neuron_limit":                   int32(8),
 		"node_neuron_usage_total":             int32(6),
 		"node_neuron_reserved_capacity":       25.0,
 		"node_neuron_unreserved_capacity":     75.0,
+		"node_neuron_available_capacity":      uint64(12), // available capacity as count
 		"node_efa_request":                    int32(2),
 		"node_efa_limit":                      int32(4),
 		"node_efa_usage_total":                int32(3),
 		"node_efa_reserved_capacity":          50.0,
 		"node_efa_unreserved_capacity":        50.0,
+		"node_efa_available_capacity":         uint64(2), // available capacity as count
 	}
 	expectedUnits = map[string]string{
 		"node_cpu_limit":                      "",
@@ -493,16 +496,19 @@ func TestConvertToOTLPMetricsForNodeMetrics(t *testing.T) {
 		"node_gpu_usage_total":                UnitCount,
 		"node_gpu_reserved_capacity":          UnitPercent,
 		"node_gpu_unreserved_capacity":        UnitPercent,
+		"node_gpu_available_capacity":         UnitCount,
 		"node_neuron_request":                 UnitCount,
 		"node_neuron_limit":                   UnitCount,
 		"node_neuron_usage_total":             UnitCount,
 		"node_neuron_reserved_capacity":       UnitPercent,
 		"node_neuron_unreserved_capacity":     UnitPercent,
+		"node_neuron_available_capacity":      UnitCount,
 		"node_efa_request":                    UnitCount,
 		"node_efa_limit":                      UnitCount,
 		"node_efa_usage_total":                UnitCount,
 		"node_efa_reserved_capacity":          UnitPercent,
 		"node_efa_unreserved_capacity":        UnitPercent,
+		"node_efa_available_capacity":         UnitCount,
 	}
 	tags = map[string]string{
 		"AutoScalingGroupName": "eks-a6bb9db9-267c-401c-db55-df8ef645b06f",
@@ -756,17 +762,17 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         1,
 		"pod_gpu_usage_total":                   1,
 		"pod_gpu_reserved_capacity":             2.3677681271483983,
-		"pod_gpu_unreserved_capacity":           2.3677681271483983,
+		"pod_gpu_available_capacity":            uint64(41), // available capacity as count
 		"pod_neuron_request":                    1,
 		"pod_neuron_limit":                      2,
 		"pod_neuron_usage_total":                2,
 		"pod_neuron_reserved_capacity":          12.5,
-		"pod_neuron_unreserved_capacity":        87.5,
+		"pod_neuron_available_capacity":         uint64(15), // available capacity as count
 		"pod_efa_request":                       1,
 		"pod_efa_limit":                         2,
 		"pod_efa_usage_total":                   2,
 		"pod_efa_reserved_capacity":             50.0,
-		"pod_efa_unreserved_capacity":           50.0,
+		"pod_efa_available_capacity":            uint64(3), // available capacity as count
 	}
 	expectedUnits = map[string]string{
 		"pod_cpu_limit":                         "",
@@ -817,17 +823,17 @@ func TestConvertToOTLPMetricsForPodMetrics(t *testing.T) {
 		"pod_gpu_limit":                         UnitCount,
 		"pod_gpu_usage_total":                   UnitCount,
 		"pod_gpu_reserved_capacity":             UnitPercent,
-		"pod_gpu_unreserved_capacity":           UnitPercent,
+		"pod_gpu_available_capacity":            UnitCount,
 		"pod_neuron_request":                    UnitCount,
 		"pod_neuron_limit":                      UnitCount,
 		"pod_neuron_usage_total":                UnitCount,
 		"pod_neuron_reserved_capacity":          UnitPercent,
-		"pod_neuron_unreserved_capacity":        UnitPercent,
+		"pod_neuron_available_capacity":         UnitCount,
 		"pod_efa_request":                       UnitCount,
 		"pod_efa_limit":                         UnitCount,
 		"pod_efa_usage_total":                   UnitCount,
 		"pod_efa_reserved_capacity":             UnitPercent,
-		"pod_efa_unreserved_capacity":           UnitPercent,
+		"pod_efa_available_capacity":            UnitCount,
 	}
 	tags = map[string]string{
 		"ClusterName":  "eks-aoc",

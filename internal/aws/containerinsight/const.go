@@ -151,9 +151,10 @@ const (
 	GpuLimit              = "gpu_limit"
 	GpuUsageTotal         = "gpu_usage_total"
 	GpuRequest            = "gpu_request"
-	GpuReservedCapacity   = "gpu_reserved_capacity"
-	GpuUnreservedCapacity = "gpu_unreserved_capacity"
-	GpuAvailableCapacity  = "gpu_available_capacity"
+	GpuReservedCapacity     = "gpu_reserved_capacity"
+	GpuUnreservedCapacity   = "gpu_unreserved_capacity"
+	GpuAvailableCapacity    = "gpu_available_capacity"
+	GpuTensorCoreUtilization = "gpu_tensor_core_utilization"
 
 	NeuronLimit              = "neuron_limit"
 	NeuronUsageTotal         = "neuron_usage_total"
@@ -388,9 +389,10 @@ func init() {
 		GpuLimit:              UnitCount,
 		GpuUsageTotal:         UnitCount,
 		GpuRequest:            UnitCount,
-		GpuReservedCapacity:   UnitPercent,
-		GpuUnreservedCapacity: UnitPercent,
-		GpuAvailableCapacity:  UnitCount,
+		GpuReservedCapacity:      UnitPercent,
+		GpuUnreservedCapacity:    UnitPercent,
+		GpuAvailableCapacity:     UnitCount,
+		GpuTensorCoreUtilization: UnitPercent,
 
 		NeuronLimit:              UnitCount,
 		NeuronUsageTotal:         UnitCount,
