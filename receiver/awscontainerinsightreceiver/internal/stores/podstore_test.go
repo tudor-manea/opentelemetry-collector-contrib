@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
@@ -2145,4 +2146,203 @@ func TestPodStore_decorateNode_withEfa(t *testing.T) {
 	assert.Equal(t, float64(25.0), metric.GetField("node_efa_reserved_capacity").(float64))   // 1/4 * 100 = 25.0
 	assert.Equal(t, float64(75.0), metric.GetField("node_efa_unreserved_capacity").(float64)) // 100 - 25.0 = 75.0
 	assert.Equal(t, uint64(3), metric.GetField("node_efa_available_capacity").(uint64))       // 4 total - 1 request = 3 available
+}
+
+func TestEMFLogGeneration(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	testCases := []struct {
+		name          string
+		metricType    string
+		expectedField string
+		testLevel     string
+	}{
+		{
+			name:          "GPU Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuUnreservedCapacity),
+		},
+		{
+			name:          "GPU Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuAvailableCapacity),
+		},
+		{
+			name:          "GPU Node Tensor Core Utilization EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "GPU Container Tensor Core Utilization EMF Log",
+			metricType:    ci.TypeContainer,
+			testLevel:     "container",
+			expectedField: ci.MetricName(ci.TypeContainer, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "GPU Pod Tensor Core Utilization EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "EFA Node Limit EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaLimit),
+		},
+		{
+			name:          "EFA Node Usage Total EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaUsageTotal),
+		},
+		{
+			name:          "EFA Pod Request EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.EfaRequest),
+		},
+		{
+			name:          "EFA Node Reserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaReservedCapacity),
+		},
+		{
+			name:          "EFA Pod Reserved Capacity EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.EfaReservedCapacity),
+		},
+		{
+			name:          "EFA Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaUnreservedCapacity),
+		},
+		{
+			name:          "EFA Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaAvailableCapacity),
+		},
+		{
+			name:          "Neuron Node Limit EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronLimit),
+		},
+		{
+			name:          "Neuron Pod Request EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronRequest),
+		},
+		{
+			name:          "Neuron Node Usage Total EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronUsageTotal),
+		},
+		{
+			name:          "Neuron Pod Usage Total EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronUsageTotal),
+		},
+		{
+			name:          "Neuron Node Reserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronReservedCapacity),
+		},
+		{
+			name:          "Neuron Pod Reserved Capacity EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronReservedCapacity),
+		},
+		{
+			name:          "Neuron Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronUnreservedCapacity),
+		},
+		{
+			name:          "Neuron Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronAvailableCapacity),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			metric := NewCIMetric(tc.metricType, logger)
+
+			switch tc.testLevel {
+			case "node":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+			case "pod":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+				metric.AddTag(ci.K8sNamespace, "test-namespace")
+				metric.AddTag(ci.K8sPodNameKey, "test-pod")
+			case "container":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+				metric.AddTag(ci.K8sNamespace, "test-namespace")
+				metric.AddTag(ci.K8sPodNameKey, "test-pod")
+				metric.AddTag(ci.ContainerNamekey, "test-container")
+			}
+
+			metric.AddField(tc.expectedField, 1.0)
+
+			TagMetricSource(metric)
+
+			otlpMetrics := ci.ConvertToOTLPMetrics(metric.GetFields(), metric.GetTags(), logger)
+
+			validateEMFLogStructure(t, otlpMetrics, tc.expectedField, tc.testLevel)
+		})
+	}
+}
+
+func validateEMFLogStructure(t *testing.T, metrics pmetric.Metrics, expectedField string, testLevel string) {
+	rms := metrics.ResourceMetrics()
+	require.Positive(t, rms.Len(), 0)
+
+	rm := rms.At(0)
+	sms := rm.ScopeMetrics()
+	require.Positive(t, sms.Len(), 0)
+
+	sm := sms.At(0)
+	ms := sm.Metrics()
+
+	foundMetrics := make(map[string]bool)
+	for i := 0; i < ms.Len(); i++ {
+		metric := ms.At(i)
+		foundMetrics[metric.Name()] = true
+		assert.Equal(t, pmetric.MetricTypeGauge, metric.Type())
+	}
+
+	assert.True(t, foundMetrics[expectedField], "Expected metric %s not found", expectedField)
+
+	attrs := rm.Resource().Attributes()
+	sourcesVal, exists := attrs.Get(ci.SourcesKey)
+	if exists {
+		assert.NotEmpty(t, sourcesVal.Str())
+
+		var sources []string
+		err := json.Unmarshal([]byte(sourcesVal.Str()), &sources)
+		assert.NoError(t, err)
+
+		switch testLevel {
+		case "node":
+			assert.Contains(t, sources, "calculated")
+		case "pod", "container":
+			assert.Contains(t, sources, "pod")
+			assert.Contains(t, sources, "calculated")
+		}
+	}
 }
