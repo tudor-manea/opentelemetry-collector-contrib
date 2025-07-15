@@ -247,12 +247,12 @@ func TestDcgmScraperJobName(t *testing.T) {
 
 func TestMetricToUnitMappings(t *testing.T) {
 	expectedMappings := map[string]string{
-		"DCGM_FI_DEV_GPU_UTIL":           "Percent",
-		"DCGM_FI_DEV_FB_USED_PERCENT":    "Percent",
-		"DCGM_FI_DEV_FB_USED":            "Bytes",
-		"DCGM_FI_DEV_FB_TOTAL":           "Bytes",
-		"DCGM_FI_DEV_GPU_TEMP":           "None",
-		"DCGM_FI_DEV_POWER_USAGE":        "None",
+		"DCGM_FI_DEV_GPU_UTIL":            "Percent",
+		"DCGM_FI_DEV_FB_USED_PERCENT":     "Percent",
+		"DCGM_FI_DEV_FB_USED":             "Bytes",
+		"DCGM_FI_DEV_FB_TOTAL":            "Bytes",
+		"DCGM_FI_DEV_GPU_TEMP":            "None",
+		"DCGM_FI_DEV_POWER_USAGE":         "None",
 		"DCGM_FI_PROF_PIPE_TENSOR_ACTIVE": "Percent",
 	}
 
