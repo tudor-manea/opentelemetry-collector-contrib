@@ -305,7 +305,6 @@ func TestPodStore_decorateGpu(t *testing.T) {
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_limit").(uint64))
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_usage_total").(uint64))
 	assert.Equal(t, float64(5), metric.GetField("pod_gpu_reserved_capacity").(float64))
-	assert.Equal(t, uint64(19), metric.GetField("pod_gpu_available_capacity").(uint64)) // 20 total - 1 request = 19 available
 }
 
 // Helper function to create a pod with neuron resources
@@ -478,7 +477,6 @@ func TestPodStore_decorateNeuron(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_limit").(uint64))
 	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_usage_total").(uint64))            // Should equal limit for running pods
 	assert.Equal(t, float64(12.5), metric.GetField("pod_neuron_reserved_capacity").(float64)) // 2/16 * 100 = 12.5
-	assert.Equal(t, uint64(15), metric.GetField("pod_neuron_available_capacity").(uint64))    // 16 total - 1 request = 15 available
 }
 
 func TestPodStore_decorateNeuron_podNotRunning(t *testing.T) {
@@ -503,7 +501,6 @@ func TestPodStore_decorateNeuron_podNotRunning(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_limit").(uint64))
 	assert.Equal(t, uint64(0), metric.GetField("pod_neuron_usage_total").(uint64)) // Should be 0 for non-running pods
 	assert.Equal(t, float64(12.5), metric.GetField("pod_neuron_reserved_capacity").(float64))
-	assert.Equal(t, uint64(15), metric.GetField("pod_neuron_available_capacity").(uint64)) // 16 total - 1 request = 15 available
 }
 
 func TestPodStore_decorateNeuron_noNeuronResources(t *testing.T) {
@@ -525,7 +522,6 @@ func TestPodStore_decorateNeuron_noNeuronResources(t *testing.T) {
 	assert.Nil(t, metric.GetField("pod_neuron_limit"))
 	assert.Nil(t, metric.GetField("pod_neuron_usage_total"))
 	assert.Nil(t, metric.GetField("pod_neuron_reserved_capacity"))
-	assert.Nil(t, metric.GetField("pod_neuron_available_capacity"))
 }
 
 // Mock provider without neuron capacity
@@ -612,7 +608,6 @@ func TestPodStore_decorateNeuron_noNodeCapacity(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_usage_total").(uint64))
 	// These should not be present when node has no neuron capacity
 	assert.Nil(t, metric.GetField("pod_neuron_reserved_capacity"))
-	assert.Nil(t, metric.GetField("pod_neuron_available_capacity"))
 }
 
 func TestPodStore_decorateNeuron_enhancedMetricsDisabled(t *testing.T) {
@@ -727,9 +722,7 @@ func TestNodeInfo_getNodeStatusCapacityNeurons(t *testing.T) {
 	}
 }
 
-// TestPodStore_decorateNode_withMultipleneuronPods tests node-level neuron metric aggregation
-// when multiple pods on the same node are using neuron. This ensures that node-level metrics
-// properly aggregate individual pod neuron usage and calculate correct capacity percentages.
+// tests node-level neuron metric aggregation across multiple neuron pods, ensuring proper usage aggregation and capacity calculations
 func TestPodStore_decorateNode_withMultipleNeuronPods(t *testing.T) {
 	t.Setenv(ci.HostName, "testNode1")
 	podStore := getPodStoreWithNeuronCapacity()
@@ -1827,7 +1820,6 @@ func TestPodStore_decorateEfa(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_efa_limit").(uint64))
 	assert.Equal(t, uint64(2), metric.GetField("pod_efa_usage_total").(uint64))            // Should equal limit for running pods
 	assert.Equal(t, float64(50.0), metric.GetField("pod_efa_reserved_capacity").(float64)) // 2/4 * 100 = 50.0
-	assert.Equal(t, uint64(3), metric.GetField("pod_efa_available_capacity").(uint64))     // 4 total - 1 request = 3 available
 }
 
 func TestPodStore_decorateEfa_podNotRunning(t *testing.T) {
@@ -1852,7 +1844,6 @@ func TestPodStore_decorateEfa_podNotRunning(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_efa_limit").(uint64))
 	assert.Equal(t, uint64(0), metric.GetField("pod_efa_usage_total").(uint64)) // Should be 0 for non-running pods
 	assert.Equal(t, float64(50.0), metric.GetField("pod_efa_reserved_capacity").(float64))
-	assert.Equal(t, uint64(3), metric.GetField("pod_efa_available_capacity").(uint64)) // 4 total - 1 request = 3 available
 }
 
 func TestPodStore_decorateEfa_noEfaResources(t *testing.T) {
@@ -1874,7 +1865,6 @@ func TestPodStore_decorateEfa_noEfaResources(t *testing.T) {
 	assert.Nil(t, metric.GetField("pod_efa_limit"))
 	assert.Nil(t, metric.GetField("pod_efa_usage_total"))
 	assert.Nil(t, metric.GetField("pod_efa_reserved_capacity"))
-	assert.Nil(t, metric.GetField("pod_efa_available_capacity"))
 }
 
 // Mock provider without EFA capacity
@@ -1961,7 +1951,6 @@ func TestPodStore_decorateEfa_noNodeCapacity(t *testing.T) {
 	assert.Equal(t, uint64(2), metric.GetField("pod_efa_usage_total").(uint64))
 	// These should not be present when node has no EFA capacity
 	assert.Nil(t, metric.GetField("pod_efa_reserved_capacity"))
-	assert.Nil(t, metric.GetField("pod_efa_available_capacity"))
 }
 
 func TestPodStore_decorateEfa_enhancedMetricsDisabled(t *testing.T) {
@@ -2076,9 +2065,8 @@ func TestNodeInfo_getNodeStatusCapacityEfas(t *testing.T) {
 	}
 }
 
-// TestPodStore_decorateNode_withMultipleEfaPods tests node-level EFA metric aggregation
-// when multiple pods on the same node are using EFAs. This ensures that node-level metrics
-// properly aggregate individual pod EFA usage and calculate correct capacity percentages.
+// tests node-level EFA metric aggregation across multiple EFA pods,
+// ensuring proper usage aggregation and capacity calculations.
 func TestPodStore_decorateNode_withMultipleEfaPods(t *testing.T) {
 	t.Setenv(ci.HostName, "testNode1")
 	podStore := getPodStoreWithEfaCapacity()
