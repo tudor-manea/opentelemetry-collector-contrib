@@ -14,9 +14,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	ci "github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/containerinsight"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/k8s/k8sclient"
@@ -288,6 +290,8 @@ func TestPodStore_decorateGpu(t *testing.T) {
 	defer require.NoError(t, podStore.Shutdown())
 
 	pod := getBaseTestPodInfo()
+	podList := []corev1.Pod{*pod}
+	podStore.refreshInternal(time.Now(), podList)
 
 	// test pod metrics
 	tags := map[string]string{ci.MetricType: ci.TypePod}
@@ -302,6 +306,472 @@ func TestPodStore_decorateGpu(t *testing.T) {
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_limit").(uint64))
 	assert.Equal(t, uint64(1), metric.GetField("pod_gpu_usage_total").(uint64))
 	assert.Equal(t, float64(5), metric.GetField("pod_gpu_reserved_capacity").(float64))
+}
+
+// Helper function to create a pod with neuron resources
+func getTestPodWithNeuronInfo() *corev1.Pod {
+	podJSON := `
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {},
+  "items": [
+    {
+      "metadata": {
+        "name": "neuron-inference-pod",
+        "namespace": "default",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "Deployment",
+                "name": "neuron-inference",
+                "uid": "36779a62-4aca-11e9-977b-0672b6c6fc94"
+            }
+        ],
+        "selfLink": "/api/v1/namespaces/default/pods/neuron-inference-pod",
+        "uid": "764d01e1-2a2f-11e9-95ea-0a695d7ce286",
+        "resourceVersion": "5671573",
+        "creationTimestamp": "2019-02-06T16:51:34Z",
+        "labels": {
+          "app": "neuron_inference"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "neuron-container",
+            "image": "neuron-inference:latest",
+            "resources": {
+              "limits": {
+                "cpu": "1000m",
+                "memory": "2Gi",
+                "aws.amazon.com/neuron": "2"
+              },
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi",
+                "aws.amazon.com/neuron": "1"
+              }
+            }
+          }
+        ],
+        "nodeName": "testNode1"
+      },
+      "status": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "neuron-container",
+            "state": {
+              "running": {
+                "startedAt": "2019-02-06T16:51:43Z"
+              }
+            },
+            "ready": true,
+            "restartCount": 0,
+            "image": "neuron-inference:latest",
+            "imageID": "docker-pullable://neuron-inference@sha256:abc123",
+            "containerID": "docker://neuron123"
+          }
+        ]
+      }
+    }
+  ]
+}`
+
+	var podList corev1.PodList
+	err := json.Unmarshal([]byte(podJSON), &podList)
+	if err != nil {
+		panic(err)
+	}
+	return &podList.Items[0]
+}
+
+// Helper function to create a pod store with neuron capacity
+func getPodStoreWithNeuronCapacity() *PodStore {
+	nodeInfo := newNodeInfo("testNode1", &mockNodeInfoProviderWithNeuron{}, zap.NewNop())
+	nodeInfo.setCPUCapacity(4000)
+	nodeInfo.setMemCapacity(400 * 1024 * 1024)
+	return &PodStore{
+		cache:            newMapWithExpiry(time.Minute),
+		nodeInfo:         nodeInfo,
+		prevMeasurements: sync.Map{},
+		logger:           zap.NewNop(),
+	}
+}
+
+// Mock provider that includes neuron capacity
+type mockNodeInfoProviderWithNeuron struct{}
+
+func (m *mockNodeInfoProviderWithNeuron) NodeToCapacityMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":                  *resource.NewQuantity(5, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(10, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithNeuron) NodeToAllocatableMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":                  *resource.NewQuantity(15, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(20, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithNeuron) NodeToConditionsMap() map[string]map[corev1.NodeConditionType]corev1.ConditionStatus {
+	return map[string]map[corev1.NodeConditionType]corev1.ConditionStatus{
+		"testNode1": {
+			corev1.NodeReady:              corev1.ConditionTrue,
+			corev1.NodeDiskPressure:       corev1.ConditionFalse,
+			corev1.NodeMemoryPressure:     corev1.ConditionFalse,
+			corev1.NodePIDPressure:        corev1.ConditionFalse,
+			corev1.NodeNetworkUnavailable: corev1.ConditionFalse,
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithNeuron) NodeToLabelsMap() map[string]map[k8sclient.Label]int8 {
+	return map[string]map[k8sclient.Label]int8{
+		"testNode1": {},
+		"testNode2": {},
+	}
+}
+
+func TestPodStore_decorateNeuron(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithNeuronInfo()
+	podList := []corev1.Pod{*pod}
+	podStore.refreshInternal(time.Now(), podList)
+
+	// test pod metrics
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify neuron metrics are added correctly
+	assert.Equal(t, uint64(1), metric.GetField("pod_neuron_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_limit").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_usage_total").(uint64))            // Should equal limit for running pods
+	assert.Equal(t, float64(12.5), metric.GetField("pod_neuron_reserved_capacity").(float64)) // 2/16 * 100 = 12.5
+}
+
+func TestPodStore_decorateNeuron_podNotRunning(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithNeuronInfo()
+	pod.Status.Phase = corev1.PodPending // Change to pending state
+	podList := []corev1.Pod{*pod}
+	podStore.refreshInternal(time.Now(), podList)
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify neuron metrics are added but usage_total is 0 for non-running pods
+	assert.Equal(t, uint64(1), metric.GetField("pod_neuron_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_limit").(uint64))
+	assert.Equal(t, uint64(0), metric.GetField("pod_neuron_usage_total").(uint64)) // Should be 0 for non-running pods
+	assert.Equal(t, float64(12.5), metric.GetField("pod_neuron_reserved_capacity").(float64))
+}
+
+func TestPodStore_decorateNeuron_noNeuronResources(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getBaseTestPodInfo() // This pod only has GPU resources, no neuron
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify no neuron metrics are added
+	assert.Nil(t, metric.GetField("pod_neuron_request"))
+	assert.Nil(t, metric.GetField("pod_neuron_limit"))
+	assert.Nil(t, metric.GetField("pod_neuron_usage_total"))
+	assert.Nil(t, metric.GetField("pod_neuron_reserved_capacity"))
+}
+
+// Mock provider without neuron capacity
+type mockNodeInfoProviderWithoutNeuron struct{}
+
+func (m *mockNodeInfoProviderWithoutNeuron) NodeToCapacityMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":           *resource.NewQuantity(5, resource.DecimalSI),
+			"nvidia.com/gpu": *resource.NewQuantity(20, resource.DecimalExponent),
+			// No Neuron capacity
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(10, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutNeuron) NodeToAllocatableMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":           *resource.NewQuantity(15, resource.DecimalSI),
+			"nvidia.com/gpu": *resource.NewQuantity(20, resource.DecimalExponent),
+			// No neuron capacity
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(20, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutNeuron) NodeToConditionsMap() map[string]map[corev1.NodeConditionType]corev1.ConditionStatus {
+	return map[string]map[corev1.NodeConditionType]corev1.ConditionStatus{
+		"testNode1": {
+			corev1.NodeReady:              corev1.ConditionTrue,
+			corev1.NodeDiskPressure:       corev1.ConditionFalse,
+			corev1.NodeMemoryPressure:     corev1.ConditionFalse,
+			corev1.NodePIDPressure:        corev1.ConditionFalse,
+			corev1.NodeNetworkUnavailable: corev1.ConditionFalse,
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutNeuron) NodeToLabelsMap() map[string]map[k8sclient.Label]int8 {
+	return map[string]map[k8sclient.Label]int8{
+		"testNode1": {},
+		"testNode2": {},
+	}
+}
+
+// Helper function to create a pod store without neuron capacity
+func getPodStoreWithoutNeuronCapacity() *PodStore {
+	nodeInfo := newNodeInfo("testNode1", &mockNodeInfoProviderWithoutNeuron{}, zap.NewNop())
+	nodeInfo.setCPUCapacity(4000)
+	nodeInfo.setMemCapacity(400 * 1024 * 1024)
+	return &PodStore{
+		cache:            newMapWithExpiry(time.Minute),
+		nodeInfo:         nodeInfo,
+		prevMeasurements: sync.Map{},
+		logger:           zap.NewNop(),
+	}
+}
+
+// Test scenario where (for example) node group is set up with no neuron hardware and then a pod is
+// created with neruon limit and request specifications
+func TestPodStore_decorateNeuron_noNodeCapacity(t *testing.T) {
+	// Use pod store without neuron capacity
+	podStore := getPodStoreWithoutNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithNeuronInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify basic neuron metrics are added but no capacity-based metrics
+	assert.Equal(t, uint64(1), metric.GetField("pod_neuron_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_limit").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_neuron_usage_total").(uint64))
+	// These should not be present when node has no neuron capacity
+	assert.Nil(t, metric.GetField("pod_neuron_reserved_capacity"))
+}
+
+func TestPodStore_decorateNeuron_enhancedMetricsDisabled(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithNeuronInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = false // Disable enhanced metrics
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify no neuron metrics are added when enhanced metrics are disabled
+	assert.Nil(t, metric.GetField("pod_neuron_request"))
+	assert.Nil(t, metric.GetField("pod_neuron_limit"))
+	assert.Nil(t, metric.GetField("pod_neuron_usage_total"))
+}
+
+func TestPodStore_decorateNeuron_acceleratedComputeDisabled(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithNeuronInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = false // Disable accelerated compute metrics
+	podStore.decorateNeuron(metric, pod)
+
+	// Verify no Neuron metrics are added when accelerated compute metrics are disabled
+	assert.Nil(t, metric.GetField("pod_neuron_request"))
+	assert.Nil(t, metric.GetField("pod_neuron_limit"))
+	assert.Nil(t, metric.GetField("pod_neuron_usage_total"))
+}
+
+// Pods that have succeeded or failed should not be using Neurons anymore
+func TestPodStore_decorateNeuron_podSucceededOrFailed(t *testing.T) {
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	testCases := []corev1.PodPhase{
+		corev1.PodSucceeded,
+		corev1.PodFailed,
+	}
+
+	for _, phase := range testCases {
+		t.Run(string(phase), func(t *testing.T) {
+			pod := getTestPodWithNeuronInfo()
+			pod.Status.Phase = phase
+
+			tags := map[string]string{ci.MetricType: ci.TypePod}
+			fields := map[string]any{}
+
+			metric := generateMetric(fields, tags)
+			podStore.includeEnhancedMetrics = true
+			podStore.enableAcceleratedComputeMetrics = true
+			podStore.decorateNeuron(metric, pod)
+
+			// Verify no Neuron metrics are added for succeeded/failed pods
+			assert.Nil(t, metric.GetField("pod_neuron_request"))
+			assert.Nil(t, metric.GetField("pod_neuron_limit"))
+			assert.Nil(t, metric.GetField("pod_neuron_usage_total"))
+		})
+	}
+}
+
+func TestNodeInfo_getNodeStatusCapacityNeurons(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodeName       string
+		provider       nodeInfoProvider
+		expectedValue  uint64
+		expectedExists bool
+	}{
+		{
+			name:           "node with neuron capacity",
+			nodeName:       "testNode1",
+			provider:       &mockNodeInfoProviderWithNeuron{},
+			expectedValue:  16,
+			expectedExists: true,
+		},
+		{
+			name:           "node without neuron capacity",
+			nodeName:       "testNode2",
+			provider:       &mockNodeInfoProviderWithNeuron{},
+			expectedValue:  0,
+			expectedExists: true, // Node exists but has no neuron resource
+		},
+		{
+			name:           "node not found",
+			nodeName:       "nonexistentNode",
+			provider:       &mockNodeInfoProviderWithNeuron{},
+			expectedValue:  0,
+			expectedExists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodeInfo := newNodeInfo(tt.nodeName, tt.provider, zap.NewNop())
+			value, exists := nodeInfo.getNodeStatusCapacityNeuron()
+			assert.Equal(t, tt.expectedExists, exists)
+			assert.Equal(t, tt.expectedValue, value)
+		})
+	}
+}
+
+// tests node-level neuron metric aggregation across multiple neuron pods, ensuring proper usage aggregation and capacity calculations
+func TestPodStore_decorateNode_withMultipleNeuronPods(t *testing.T) {
+	t.Setenv(ci.HostName, "testNode1")
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	// Create multiple pods with different neuron requirements
+	pod1 := getTestPodWithNeuronInfo()
+	pod1.Name = "neuron-pod-1"
+	// pod1 has: request=1, limit=2 neuron
+
+	pod2 := getTestPodWithNeuronInfo()
+	pod2.Name = "neuron-pod-2"
+	// Modify pod2 to have different neuron requirements
+	pod2.Spec.Containers[0].Resources.Requests["aws.amazon.com/neuron"] = resource.MustParse("2")
+	pod2.Spec.Containers[0].Resources.Limits["aws.amazon.com/neuron"] = resource.MustParse("4")
+	// pod2 has: request=2, limit=4 neuron
+
+	// Add pods to the store using refreshInternal
+	podList := []corev1.Pod{*pod1, *pod2}
+	podStore.refreshInternal(time.Now(), podList)
+
+	// Create node-level metric
+	tags := map[string]string{ci.MetricType: ci.TypeNode}
+	fields := map[string]any{
+		// Add some base node metrics
+		ci.MetricName(ci.TypeNode, ci.CPUTotal):      float64(1000),
+		ci.MetricName(ci.TypeNode, ci.MemWorkingset): float64(2048),
+	}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+
+	// Decorate the node metric - this should aggregate neuron metrics from all pods
+	podStore.decorateNode(metric)
+
+	// Verify aggregated neuron metrics at node level
+	// Total requests: pod1(1) + pod2(2) = 3
+	assert.Equal(t, uint64(3), metric.GetField("node_neuron_request").(uint64))
+	// Node limit is the total node capacity (16 neuron), not sum of pod limits
+	assert.Equal(t, uint64(16), metric.GetField("node_neuron_limit").(uint64))
+	// Total usage: pod1(2) + pod2(4) = 6 (since both pods are running, usage_total = limit)
+	assert.Equal(t, uint64(6), metric.GetField("node_neuron_usage_total").(uint64))
+	// Reserved capacity: 3 neuron requested out of 16 total = 18.75%
+	assert.Equal(t, float64(18.75), metric.GetField("node_neuron_reserved_capacity").(float64))
+	// Unreserved capacity: 100% - 18.75% = 81.25%
+	assert.Equal(t, float64(81.25), metric.GetField("node_neuron_unreserved_capacity").(float64))
+	assert.Equal(t, uint64(13), metric.GetField("node_neuron_available_capacity").(uint64)) // 16 total - 3 requests = 13 available
 }
 
 func TestPodStore_previousCleanupLocking(_ *testing.T) {
@@ -986,6 +1456,26 @@ func TestPodStore_decorateNode(t *testing.T) {
 	assert.Equal(t, uint64(20), metric.GetField("node_gpu_limit").(uint64))
 	assert.Equal(t, uint64(1), metric.GetField("node_gpu_usage_total").(uint64))
 	assert.Equal(t, float64(5), metric.GetField("node_gpu_reserved_capacity").(float64))
+	assert.Equal(t, float64(95), metric.GetField("node_gpu_unreserved_capacity").(float64))
+	assert.Equal(t, uint64(19), metric.GetField("node_gpu_available_capacity").(uint64))
+
+	// Test neuron metrics at node level
+	// The base test pod doesn't have neuron resources, so these should be 0
+	assert.Equal(t, uint64(0), metric.GetField("node_neuron_request").(uint64))
+	assert.Equal(t, uint64(16), metric.GetField("node_neuron_limit").(uint64))
+	assert.Equal(t, uint64(0), metric.GetField("node_neuron_usage_total").(uint64))
+	assert.Equal(t, float64(0), metric.GetField("node_neuron_reserved_capacity").(float64))
+	assert.Equal(t, float64(100), metric.GetField("node_neuron_unreserved_capacity").(float64))
+	assert.Equal(t, uint64(16), metric.GetField("node_neuron_available_capacity").(uint64)) // 16 total - 0 requests = 16 available
+
+	// Test EFA metrics at node level
+	// The base test pod doesn't have EFA resources, so these should be 0
+	assert.Equal(t, uint64(0), metric.GetField("node_efa_request").(uint64))
+	assert.Equal(t, uint64(4), metric.GetField("node_efa_limit").(uint64))
+	assert.Equal(t, uint64(0), metric.GetField("node_efa_usage_total").(uint64))
+	assert.Equal(t, float64(0), metric.GetField("node_efa_reserved_capacity").(float64))
+	assert.Equal(t, float64(100), metric.GetField("node_efa_unreserved_capacity").(float64))
+	assert.Equal(t, uint64(4), metric.GetField("node_efa_available_capacity").(uint64)) // 4 total - 0 requests = 4 available
 
 	assert.Equal(t, uint64(1), metric.GetField("node_status_condition_ready").(uint64))
 	assert.Equal(t, uint64(0), metric.GetField("node_status_condition_disk_pressure").(uint64))
@@ -1049,6 +1539,36 @@ func TestPodStore_decorateNode_multiplePodStates(t *testing.T) {
 
 	assert.Equal(t, uint64(100*1024*1024), metric.GetField("node_memory_request").(uint64))
 	assert.Equal(t, float64(25), metric.GetField("node_memory_reserved_capacity").(float64))
+}
+
+func TestPodStore_decorateNode_withNeuron(t *testing.T) {
+	t.Setenv(ci.HostName, "testNode1")
+	pod := getTestPodWithNeuronInfo()
+	podList := []corev1.Pod{*pod}
+	podStore := getPodStoreWithNeuronCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+	podStore.refreshInternal(time.Now(), podList)
+
+	tags := map[string]string{ci.MetricType: ci.TypeNode}
+	fields := map[string]any{
+		ci.MetricName(ci.TypeNode, ci.CPUTotal):      float64(100),
+		ci.MetricName(ci.TypeNode, ci.CPULimit):      uint64(4000),
+		ci.MetricName(ci.TypeNode, ci.MemWorkingset): float64(100 * 1024 * 1024),
+		ci.MetricName(ci.TypeNode, ci.MemLimit):      uint64(400 * 1024 * 1024),
+	}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNode(metric)
+
+	// Test neuron metrics at node level with a pod that uses neurons
+	assert.Equal(t, uint64(1), metric.GetField("node_neuron_request").(uint64))                   // Pod requests 1 neuron
+	assert.Equal(t, uint64(16), metric.GetField("node_neuron_limit").(uint64))                    // Node has 16 neurons
+	assert.Equal(t, uint64(2), metric.GetField("node_neuron_usage_total").(uint64))               // Pod uses 2 neurons (limit)
+	assert.Equal(t, float64(6.25), metric.GetField("node_neuron_reserved_capacity").(float64))    // 1/16 * 100 = 6.25
+	assert.Equal(t, float64(93.75), metric.GetField("node_neuron_unreserved_capacity").(float64)) // 100 - 6.25 = 93.75
+	assert.Equal(t, uint64(15), metric.GetField("node_neuron_available_capacity").(uint64))       // 16 total - 1 request = 15 available
 }
 
 func TestPodStore_Decorate(t *testing.T) {
@@ -1127,4 +1647,702 @@ func generateRawCIMetric() CIMetric {
 	tags := map[string]string{ci.MetricType: ci.TypePod, ci.K8sNamespace: "default", ci.K8sPodNameKey: "cpu-limit"}
 	fields := map[string]any{ci.MetricName(ci.TypePod, ci.CPUTotal): float64(1)}
 	return generateMetric(fields, tags)
+}
+
+// Helper function to create a pod with EFA resources
+func getTestPodWithEfaInfo() *corev1.Pod {
+	podJSON := `
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {},
+  "items": [
+    {
+      "metadata": {
+        "name": "efa-inference-pod",
+        "namespace": "default",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "Deployment",
+                "name": "efa-inference",
+                "uid": "36779a62-4aca-11e9-977b-0672b6c6fc94"
+            }
+        ],
+        "selfLink": "/api/v1/namespaces/default/pods/efa-inference-pod",
+        "uid": "764d01e1-2a2f-11e9-95ea-0a695d7ce286",
+        "resourceVersion": "5671573",
+        "creationTimestamp": "2019-02-06T16:51:34Z",
+        "labels": {
+          "app": "efa_inference"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "efa-container",
+            "image": "efa-inference:latest",
+            "resources": {
+              "limits": {
+                "cpu": "1000m",
+                "memory": "2Gi",
+                "vpc.amazonaws.com/efa": "2"
+              },
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi",
+                "vpc.amazonaws.com/efa": "1"
+              }
+            }
+          }
+        ],
+        "nodeName": "testNode1"
+      },
+      "status": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "Ready",
+            "status": "True"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "name": "efa-container",
+            "state": {
+              "running": {
+                "startedAt": "2019-02-06T16:51:43Z"
+              }
+            },
+            "ready": true,
+            "restartCount": 0,
+            "image": "efa-inference:latest",
+            "imageID": "docker-pullable://efa-inference@sha256:abc123",
+            "containerID": "docker://efa123"
+          }
+        ]
+      }
+    }
+  ]
+}`
+
+	var podList corev1.PodList
+	err := json.Unmarshal([]byte(podJSON), &podList)
+	if err != nil {
+		panic(err)
+	}
+	return &podList.Items[0]
+}
+
+// Helper function to create a pod store with EFA capacity
+func getPodStoreWithEfaCapacity() *PodStore {
+	nodeInfo := newNodeInfo("testNode1", &mockNodeInfoProviderWithEfa{}, zap.NewNop())
+	nodeInfo.setCPUCapacity(4000)
+	nodeInfo.setMemCapacity(400 * 1024 * 1024)
+	return &PodStore{
+		cache:            newMapWithExpiry(time.Minute),
+		nodeInfo:         nodeInfo,
+		prevMeasurements: sync.Map{},
+		logger:           zap.NewNop(),
+	}
+}
+
+// Mock provider that includes EFA capacity
+type mockNodeInfoProviderWithEfa struct{}
+
+func (m *mockNodeInfoProviderWithEfa) NodeToCapacityMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":                  *resource.NewQuantity(5, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa": *resource.NewQuantity(4, resource.DecimalSI),
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(10, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithEfa) NodeToAllocatableMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":                  *resource.NewQuantity(15, resource.DecimalSI),
+			"nvidia.com/gpu":        *resource.NewQuantity(20, resource.DecimalExponent),
+			"aws.amazon.com/neuron": *resource.NewQuantity(16, resource.DecimalSI),
+			"vpc.amazonaws.com/efa": *resource.NewQuantity(4, resource.DecimalSI),
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(20, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithEfa) NodeToConditionsMap() map[string]map[corev1.NodeConditionType]corev1.ConditionStatus {
+	return map[string]map[corev1.NodeConditionType]corev1.ConditionStatus{
+		"testNode1": {
+			corev1.NodeReady:              corev1.ConditionTrue,
+			corev1.NodeDiskPressure:       corev1.ConditionFalse,
+			corev1.NodeMemoryPressure:     corev1.ConditionFalse,
+			corev1.NodePIDPressure:        corev1.ConditionFalse,
+			corev1.NodeNetworkUnavailable: corev1.ConditionFalse,
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithEfa) NodeToLabelsMap() map[string]map[k8sclient.Label]int8 {
+	return map[string]map[k8sclient.Label]int8{
+		"testNode1": {},
+		"testNode2": {},
+	}
+}
+
+func TestPodStore_decorateEfa(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithEfaInfo()
+	podList := []corev1.Pod{*pod}
+	podStore.refreshInternal(time.Now(), podList)
+
+	// test pod metrics
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateEfa(metric, pod)
+
+	// Verify EFA metrics are added correctly
+	assert.Equal(t, uint64(1), metric.GetField("pod_efa_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_efa_limit").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_efa_usage_total").(uint64))            // Should equal limit for running pods
+	assert.Equal(t, float64(50.0), metric.GetField("pod_efa_reserved_capacity").(float64)) // 2/4 * 100 = 50.0
+}
+
+func TestPodStore_decorateEfa_podNotRunning(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithEfaInfo()
+	pod.Status.Phase = corev1.PodPending // Change to pending state
+	podList := []corev1.Pod{*pod}
+	podStore.refreshInternal(time.Now(), podList)
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateEfa(metric, pod)
+
+	// Verify EFA metrics are added but usage_total is 0 for non-running pods
+	assert.Equal(t, uint64(1), metric.GetField("pod_efa_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_efa_limit").(uint64))
+	assert.Equal(t, uint64(0), metric.GetField("pod_efa_usage_total").(uint64)) // Should be 0 for non-running pods
+	assert.Equal(t, float64(50.0), metric.GetField("pod_efa_reserved_capacity").(float64))
+}
+
+func TestPodStore_decorateEfa_noEfaResources(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getBaseTestPodInfo() // This pod only has GPU resources, no EFA
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateEfa(metric, pod)
+
+	// Verify no EFA metrics are added
+	assert.Nil(t, metric.GetField("pod_efa_request"))
+	assert.Nil(t, metric.GetField("pod_efa_limit"))
+	assert.Nil(t, metric.GetField("pod_efa_usage_total"))
+	assert.Nil(t, metric.GetField("pod_efa_reserved_capacity"))
+}
+
+// Mock provider without EFA capacity
+type mockNodeInfoProviderWithoutEfa struct{}
+
+func (m *mockNodeInfoProviderWithoutEfa) NodeToCapacityMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":           *resource.NewQuantity(5, resource.DecimalSI),
+			"nvidia.com/gpu": *resource.NewQuantity(20, resource.DecimalExponent),
+			// No EFA capacity
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(10, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutEfa) NodeToAllocatableMap() map[string]corev1.ResourceList {
+	return map[string]corev1.ResourceList{
+		"testNode1": {
+			"pods":           *resource.NewQuantity(15, resource.DecimalSI),
+			"nvidia.com/gpu": *resource.NewQuantity(20, resource.DecimalExponent),
+			// No EFA capacity
+		},
+		"testNode2": {
+			"pods": *resource.NewQuantity(20, resource.DecimalSI),
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutEfa) NodeToConditionsMap() map[string]map[corev1.NodeConditionType]corev1.ConditionStatus {
+	return map[string]map[corev1.NodeConditionType]corev1.ConditionStatus{
+		"testNode1": {
+			corev1.NodeReady:              corev1.ConditionTrue,
+			corev1.NodeDiskPressure:       corev1.ConditionFalse,
+			corev1.NodeMemoryPressure:     corev1.ConditionFalse,
+			corev1.NodePIDPressure:        corev1.ConditionFalse,
+			corev1.NodeNetworkUnavailable: corev1.ConditionFalse,
+		},
+	}
+}
+
+func (m *mockNodeInfoProviderWithoutEfa) NodeToLabelsMap() map[string]map[k8sclient.Label]int8 {
+	return map[string]map[k8sclient.Label]int8{
+		"testNode1": {},
+		"testNode2": {},
+	}
+}
+
+// Helper function to create a pod store without EFA capacity
+func getPodStoreWithoutEfaCapacity() *PodStore {
+	nodeInfo := newNodeInfo("testNode1", &mockNodeInfoProviderWithoutEfa{}, zap.NewNop())
+	nodeInfo.setCPUCapacity(4000)
+	nodeInfo.setMemCapacity(400 * 1024 * 1024)
+	return &PodStore{
+		cache:            newMapWithExpiry(time.Minute),
+		nodeInfo:         nodeInfo,
+		prevMeasurements: sync.Map{},
+		logger:           zap.NewNop(),
+	}
+}
+
+// Test scenario where node group is set up with no EFA hardware and then a pod is
+// created with EFA limit and request specifications
+func TestPodStore_decorateEfa_noNodeCapacity(t *testing.T) {
+	// Use pod store without EFA capacity
+	podStore := getPodStoreWithoutEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithEfaInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateEfa(metric, pod)
+
+	// Verify basic EFA metrics are added but no capacity-based metrics
+	assert.Equal(t, uint64(1), metric.GetField("pod_efa_request").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_efa_limit").(uint64))
+	assert.Equal(t, uint64(2), metric.GetField("pod_efa_usage_total").(uint64))
+	// These should not be present when node has no EFA capacity
+	assert.Nil(t, metric.GetField("pod_efa_reserved_capacity"))
+}
+
+func TestPodStore_decorateEfa_enhancedMetricsDisabled(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithEfaInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = false // Disable enhanced metrics
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateEfa(metric, pod)
+
+	// Verify no EFA metrics are added when enhanced metrics are disabled
+	assert.Nil(t, metric.GetField("pod_efa_request"))
+	assert.Nil(t, metric.GetField("pod_efa_limit"))
+	assert.Nil(t, metric.GetField("pod_efa_usage_total"))
+}
+
+func TestPodStore_decorateEfa_acceleratedComputeDisabled(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	pod := getTestPodWithEfaInfo()
+
+	tags := map[string]string{ci.MetricType: ci.TypePod}
+	fields := map[string]any{}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = false // Disable accelerated compute metrics
+	podStore.decorateEfa(metric, pod)
+
+	// Verify no EFA metrics are added when accelerated compute metrics are disabled
+	assert.Nil(t, metric.GetField("pod_efa_request"))
+	assert.Nil(t, metric.GetField("pod_efa_limit"))
+	assert.Nil(t, metric.GetField("pod_efa_usage_total"))
+}
+
+// Pods that have succeeded or failed should not be using EFAs anymore
+func TestPodStore_decorateEfa_podSucceededOrFailed(t *testing.T) {
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	testCases := []corev1.PodPhase{
+		corev1.PodSucceeded,
+		corev1.PodFailed,
+	}
+
+	for _, phase := range testCases {
+		t.Run(string(phase), func(t *testing.T) {
+			pod := getTestPodWithEfaInfo()
+			pod.Status.Phase = phase
+
+			tags := map[string]string{ci.MetricType: ci.TypePod}
+			fields := map[string]any{}
+
+			metric := generateMetric(fields, tags)
+			podStore.includeEnhancedMetrics = true
+			podStore.enableAcceleratedComputeMetrics = true
+			podStore.decorateEfa(metric, pod)
+
+			// Verify no EFA metrics are added for succeeded/failed pods
+			assert.Nil(t, metric.GetField("pod_efa_request"))
+			assert.Nil(t, metric.GetField("pod_efa_limit"))
+			assert.Nil(t, metric.GetField("pod_efa_usage_total"))
+		})
+	}
+}
+
+func TestNodeInfo_getNodeStatusCapacityEfas(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodeName       string
+		provider       nodeInfoProvider
+		expectedValue  uint64
+		expectedExists bool
+	}{
+		{
+			name:           "node with EFA capacity",
+			nodeName:       "testNode1",
+			provider:       &mockNodeInfoProviderWithEfa{},
+			expectedValue:  4,
+			expectedExists: true,
+		},
+		{
+			name:           "node without EFA capacity",
+			nodeName:       "testNode2",
+			provider:       &mockNodeInfoProviderWithEfa{},
+			expectedValue:  0,
+			expectedExists: true, // Node exists but has no EFA resource
+		},
+		{
+			name:           "node not found",
+			nodeName:       "nonexistentNode",
+			provider:       &mockNodeInfoProviderWithEfa{},
+			expectedValue:  0,
+			expectedExists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodeInfo := newNodeInfo(tt.nodeName, tt.provider, zap.NewNop())
+			value, exists := nodeInfo.getNodeStatusCapacityEfas()
+			assert.Equal(t, tt.expectedExists, exists)
+			assert.Equal(t, tt.expectedValue, value)
+		})
+	}
+}
+
+// tests node-level EFA metric aggregation across multiple EFA pods,
+// ensuring proper usage aggregation and capacity calculations.
+func TestPodStore_decorateNode_withMultipleEfaPods(t *testing.T) {
+	t.Setenv(ci.HostName, "testNode1")
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+
+	// Create multiple pods with different EFA requirements
+	pod1 := getTestPodWithEfaInfo()
+	pod1.Name = "efa-pod-1"
+	// pod1 has: request=1, limit=2 EFAs
+
+	pod2 := getTestPodWithEfaInfo()
+	pod2.Name = "efa-pod-2"
+	// Modify pod2 to have different EFA requirements
+	pod2.Spec.Containers[0].Resources.Requests["vpc.amazonaws.com/efa"] = resource.MustParse("2")
+	pod2.Spec.Containers[0].Resources.Limits["vpc.amazonaws.com/efa"] = resource.MustParse("1")
+	// pod2 has: request=2, limit=1 EFAs
+
+	// Add pods to the store using refreshInternal
+	podList := []corev1.Pod{*pod1, *pod2}
+	podStore.refreshInternal(time.Now(), podList)
+
+	// Create node-level metric
+	tags := map[string]string{ci.MetricType: ci.TypeNode}
+	fields := map[string]any{
+		// Add some base node metrics
+		ci.MetricName(ci.TypeNode, ci.CPUTotal):      float64(1000),
+		ci.MetricName(ci.TypeNode, ci.MemWorkingset): float64(2048),
+	}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+
+	// Decorate the node metric - this should aggregate EFA metrics from all pods
+	podStore.decorateNode(metric)
+
+	// Verify aggregated EFA metrics at node level
+	// Total requests: pod1(1) + pod2(2) = 3
+	assert.Equal(t, uint64(3), metric.GetField("node_efa_request").(uint64))
+	// Node limit is the total node capacity (4 EFAs), not sum of pod limits
+	assert.Equal(t, uint64(4), metric.GetField("node_efa_limit").(uint64))
+	// Total usage: pod1(2) + pod2(1) = 3 (since both pods are running, usage_total = limit)
+	assert.Equal(t, uint64(3), metric.GetField("node_efa_usage_total").(uint64))
+	// Reserved capacity: 3 EFAs requested out of 4 total = 75%
+	assert.Equal(t, float64(75.0), metric.GetField("node_efa_reserved_capacity").(float64))
+	// Unreserved capacity: 100% - 75% = 25%
+	assert.Equal(t, float64(25.0), metric.GetField("node_efa_unreserved_capacity").(float64))
+	assert.Equal(t, uint64(1), metric.GetField("node_efa_available_capacity").(uint64)) // 4 total - 3 requests = 1 available
+}
+
+func TestPodStore_decorateNode_withEfa(t *testing.T) {
+	t.Setenv(ci.HostName, "testNode1")
+	pod := getTestPodWithEfaInfo()
+	podList := []corev1.Pod{*pod}
+	podStore := getPodStoreWithEfaCapacity()
+	defer require.NoError(t, podStore.Shutdown())
+	podStore.refreshInternal(time.Now(), podList)
+
+	tags := map[string]string{ci.MetricType: ci.TypeNode}
+	fields := map[string]any{
+		ci.MetricName(ci.TypeNode, ci.CPUTotal):      float64(100),
+		ci.MetricName(ci.TypeNode, ci.CPULimit):      uint64(4000),
+		ci.MetricName(ci.TypeNode, ci.MemWorkingset): float64(100 * 1024 * 1024),
+		ci.MetricName(ci.TypeNode, ci.MemLimit):      uint64(400 * 1024 * 1024),
+	}
+
+	metric := generateMetric(fields, tags)
+	podStore.includeEnhancedMetrics = true
+	podStore.enableAcceleratedComputeMetrics = true
+	podStore.decorateNode(metric)
+
+	// Test EFA metrics at node level with a pod that uses EFAs
+	assert.Equal(t, uint64(1), metric.GetField("node_efa_request").(uint64))                  // Pod requests 1 EFA
+	assert.Equal(t, uint64(4), metric.GetField("node_efa_limit").(uint64))                    // Node has 4 EFAs
+	assert.Equal(t, uint64(2), metric.GetField("node_efa_usage_total").(uint64))              // Pod uses 2 EFAs (limit)
+	assert.Equal(t, float64(25.0), metric.GetField("node_efa_reserved_capacity").(float64))   // 1/4 * 100 = 25.0
+	assert.Equal(t, float64(75.0), metric.GetField("node_efa_unreserved_capacity").(float64)) // 100 - 25.0 = 75.0
+	assert.Equal(t, uint64(3), metric.GetField("node_efa_available_capacity").(uint64))       // 4 total - 1 request = 3 available
+}
+
+func TestEMFLogGeneration(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+
+	testCases := []struct {
+		name          string
+		metricType    string
+		expectedField string
+		testLevel     string
+	}{
+		{
+			name:          "GPU Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuUnreservedCapacity),
+		},
+		{
+			name:          "GPU Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuAvailableCapacity),
+		},
+		{
+			name:          "GPU Node Tensor Core Utilization EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "GPU Container Tensor Core Utilization EMF Log",
+			metricType:    ci.TypeContainer,
+			testLevel:     "container",
+			expectedField: ci.MetricName(ci.TypeContainer, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "GPU Pod Tensor Core Utilization EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.GpuTensorCoreUtilization),
+		},
+		{
+			name:          "EFA Node Limit EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaLimit),
+		},
+		{
+			name:          "EFA Node Usage Total EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaUsageTotal),
+		},
+		{
+			name:          "EFA Pod Request EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.EfaRequest),
+		},
+		{
+			name:          "EFA Node Reserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaReservedCapacity),
+		},
+		{
+			name:          "EFA Pod Reserved Capacity EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.EfaReservedCapacity),
+		},
+		{
+			name:          "EFA Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaUnreservedCapacity),
+		},
+		{
+			name:          "EFA Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.EfaAvailableCapacity),
+		},
+		{
+			name:          "Neuron Node Limit EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronLimit),
+		},
+		{
+			name:          "Neuron Pod Request EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronRequest),
+		},
+		{
+			name:          "Neuron Node Usage Total EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronUsageTotal),
+		},
+		{
+			name:          "Neuron Pod Usage Total EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronUsageTotal),
+		},
+		{
+			name:          "Neuron Node Reserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronReservedCapacity),
+		},
+		{
+			name:          "Neuron Pod Reserved Capacity EMF Log",
+			metricType:    ci.TypePod,
+			testLevel:     "pod",
+			expectedField: ci.MetricName(ci.TypePod, ci.NeuronReservedCapacity),
+		},
+		{
+			name:          "Neuron Node Unreserved Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronUnreservedCapacity),
+		},
+		{
+			name:          "Neuron Node Available Capacity EMF Log",
+			metricType:    ci.TypeNode,
+			testLevel:     "node",
+			expectedField: ci.MetricName(ci.TypeNode, ci.NeuronAvailableCapacity),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			metric := NewCIMetric(tc.metricType, logger)
+
+			switch tc.testLevel {
+			case "node":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+			case "pod":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+				metric.AddTag(ci.K8sNamespace, "test-namespace")
+				metric.AddTag(ci.K8sPodNameKey, "test-pod")
+			case "container":
+				metric.AddTag(ci.NodeNameKey, "test-node")
+				metric.AddTag(ci.K8sNamespace, "test-namespace")
+				metric.AddTag(ci.K8sPodNameKey, "test-pod")
+				metric.AddTag(ci.ContainerNamekey, "test-container")
+			}
+
+			metric.AddField(tc.expectedField, 1.0)
+
+			TagMetricSource(metric)
+
+			otlpMetrics := ci.ConvertToOTLPMetrics(metric.GetFields(), metric.GetTags(), logger)
+
+			validateEMFLogStructure(t, otlpMetrics, tc.expectedField, tc.testLevel)
+		})
+	}
+}
+
+func validateEMFLogStructure(t *testing.T, metrics pmetric.Metrics, expectedField string, testLevel string) {
+	rms := metrics.ResourceMetrics()
+	require.Positive(t, rms.Len(), 0)
+
+	rm := rms.At(0)
+	sms := rm.ScopeMetrics()
+	require.Positive(t, sms.Len(), 0)
+
+	sm := sms.At(0)
+	ms := sm.Metrics()
+
+	foundMetrics := make(map[string]bool)
+	for i := 0; i < ms.Len(); i++ {
+		metric := ms.At(i)
+		foundMetrics[metric.Name()] = true
+		assert.Equal(t, pmetric.MetricTypeGauge, metric.Type())
+	}
+
+	assert.True(t, foundMetrics[expectedField], "Expected metric %s not found", expectedField)
+
+	attrs := rm.Resource().Attributes()
+	sourcesVal, exists := attrs.Get(ci.SourcesKey)
+	if exists {
+		assert.NotEmpty(t, sourcesVal.Str())
+
+		var sources []string
+		err := json.Unmarshal([]byte(sourcesVal.Str()), &sources)
+		assert.NoError(t, err)
+
+		switch testLevel {
+		case "node":
+			assert.Contains(t, sources, "calculated")
+		case "pod", "container":
+			assert.Contains(t, sources, "pod")
+			assert.Contains(t, sources, "calculated")
+		}
+	}
 }
