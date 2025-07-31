@@ -23,6 +23,8 @@ type nodeStats struct {
 	gpuUsageTotal        uint64
 	neuroncoreReq        uint64
 	neuroncoreUsageTotal uint64
+	efaReq               uint64
+	efaUsageTotal        uint64
 }
 
 type nodeInfo struct {
