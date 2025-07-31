@@ -122,6 +122,15 @@ func (n *nodeInfo) getNodeStatusCapacityGPUs() (uint64, bool) {
 	return forceConvertToInt64(gpus, n.logger), true
 }
 
+func (n *nodeInfo) getNodeStatusCapacityEfas() (uint64, bool) {
+	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
+	if !ok {
+		return 0, false
+	}
+	efas := capacityResources.Name(resourceSpecEfaKey, resource.DecimalExponent).Value()
+	return forceConvertToInt64(efas, n.logger), true
+}
+
 func (n *nodeInfo) getNeuronResourceCapacity(resourceKey v1.ResourceName) (uint64, bool) {
 	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
 	if !ok {
