@@ -370,7 +370,6 @@ func init() {
 		ContainerCount:        UnitCount,
 		ContainerRestartCount: UnitCount,
 		RunningTaskCount:      UnitCount,
-
 		EfaRdmaReadBytes:      UnitBytesPerSec,
 		EfaRdmaWriteBytes:     UnitBytesPerSec,
 		EfaRdmaWriteRecvBytes: UnitBytesPerSec,

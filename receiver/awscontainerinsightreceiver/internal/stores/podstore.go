@@ -32,7 +32,7 @@ const (
 	neuronKey          = "aws.amazon.com/neuron"
 	neuroncoreKey      = "aws.amazon.com/neuroncore"
 	neuronDeviceKey    = "aws.amazon.com/neurondevice"
-	efaKey          = "vpc.amazonaws.com/efa"
+	efaKey             = "vpc.amazonaws.com/efa"
 	splitRegexStr      = "\\.|-"
 	kubeProxy          = "kube-proxy"
 )
@@ -368,8 +368,8 @@ func (p *PodStore) refreshInternal(now time.Time, podList []corev1.Pod) {
 		gpuUsageTotal:        gpuUsageTotal,
 		neuroncoreReq:        neuroncoreRequest,
 		neuroncoreUsageTotal: neuroncoreUsageTotal,
-		efaReq:           efaRequest,
-		efaUsageTotal:    efaUsageTotal,
+		efaReq:               efaRequest,
+		efaUsageTotal:        efaUsageTotal,
 	})
 }
 
@@ -530,8 +530,6 @@ func (p *PodStore) decorateNeuron(metric CIMetric, pod *corev1.Pod) {
 			if nodeCapacityCores, ok := p.nodeInfo.getNodeStatusCapacityNeuronCores(); ok && nodeCapacityCores != 0 {
 				reservedCapacity := float64(coresLimit) / float64(nodeCapacityCores) * 100
 				metric.AddField(ci.MetricName(ci.TypePod, ci.NeuroncoreReservedCapacity), reservedCapacity)
-				reservedCapacity := float64(podGpuLimit) / float64(nodeStatusCapacityGPUs) * 100
-				metric.AddField(ci.MetricName(ci.TypePod, ci.GpuReservedCapacity), reservedCapacity)
 			}
 		}
 	}
