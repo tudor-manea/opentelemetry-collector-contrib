@@ -120,31 +120,25 @@ func (n *nodeInfo) getNodeStatusCapacityGPUs() (uint64, bool) {
 	return forceConvertToInt64(gpus, n.logger), true
 }
 
-func (n *nodeInfo) getNodeStatusCapacityNeuron() (uint64, bool) {
+func (n *nodeInfo) getNeuronResourceCapacity(resourceKey v1.ResourceName) (uint64, bool) {
 	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
 	if !ok {
 		return 0, false
 	}
-	neuron := capacityResources.Name(resourceSpecNeuronKey, resource.DecimalExponent).Value()
-	return forceConvertToInt64(neuron, n.logger), true
+	value := capacityResources.Name(resourceKey, resource.DecimalExponent).Value()
+	return forceConvertToInt64(value, n.logger), true
+}
+
+func (n *nodeInfo) getNodeStatusCapacityNeuron() (uint64, bool) {
+	return n.getNeuronResourceCapacity(resourceSpecNeuronKey)
 }
 
 func (n *nodeInfo) getNodeStatusCapacityNeuroncore() (uint64, bool) {
-	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
-	if !ok {
-		return 0, false
-	}
-	neuroncore := capacityResources.Name(resourceSpecNeuroncoreKey, resource.DecimalExponent).Value()
-	return forceConvertToInt64(neuroncore, n.logger), true
+	return n.getNeuronResourceCapacity(resourceSpecNeuroncoreKey)
 }
 
 func (n *nodeInfo) getNodeStatusCapacityNeurondevice() (uint64, bool) {
-	capacityResources, ok := n.provider.NodeToCapacityMap()[n.nodeName]
-	if !ok {
-		return 0, false
-	}
-	neurondevice := capacityResources.Name(resourceSpecNeuronDeviceKey, resource.DecimalExponent).Value()
-	return forceConvertToInt64(neurondevice, n.logger), true
+	return n.getNeuronResourceCapacity(resourceSpecNeuronDeviceKey)
 }
 
 func (n *nodeInfo) getNeuronCoresPerDevice() (int, bool) {

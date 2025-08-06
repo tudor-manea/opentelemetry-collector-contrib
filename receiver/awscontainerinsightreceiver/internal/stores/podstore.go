@@ -486,7 +486,6 @@ func (p *PodStore) getNeuronCoresFromPod(pod *corev1.Pod) (limitCores, requestCo
 func (p *PodStore) decorateNeuron(metric CIMetric, pod *corev1.Pod) {
 	if p.includeEnhancedMetrics && p.enableAcceleratedComputeMetrics && metric.GetTag(ci.MetricType) == ci.TypePod &&
 		pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
-
 		coresLimit, coresRequest, hasNeuron := p.getNeuronCoresFromPod(pod)
 
 		if hasNeuron {
